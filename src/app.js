@@ -1,3 +1,4 @@
+// app.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   format,
@@ -21,21 +22,21 @@ function App() {
       date: '1966-09-18T14:30:00',
       text: 'fred was born.',
       pinned: false,
-      tags: [],
+      tags: ['normal tag', 'apple'],
     },
     {
       id: uuidv4(),
       date: '1980-04-10T09:15:00',
       text: 'tom was born.',
       pinned: false,
-      tags: [],
+      tags: ['@fred', '@robotics_club'],
     },
     {
       id: uuidv4(),
       date: '1980-03-07T12:00:00',
       text: 'marie rowe was born.',
       pinned: false,
-      tags: [],
+      tags: ['#start test_duration'],
     },
     {
       id: uuidv4(),
@@ -64,6 +65,13 @@ function App() {
       text: 'alexander bell graduated high school.',
       pinned: false,
       tags: [],
+    },
+    {
+      id: uuidv4(),
+      date: '2020-01-01T10:00:00',
+      text: 'a future event marking the end of test_duration.',
+      pinned: false,
+      tags: ['#stop test_duration'],
     },
   ];
 
@@ -96,6 +104,15 @@ function App() {
 
   const itemRefs = useRef({});
 
+  // Re-add logic to prevent scrolling behind modal
+  useEffect(() => {
+    if (showInfoModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [showInfoModal]);
+
   useEffect(() => {
     updateAllTags(originalTimelineData);
     updateDurations(originalTimelineData);
@@ -113,16 +130,25 @@ function App() {
   const updateDurations = (data) => {
     const dur = {};
     data.forEach((event) => {
+      const eventDate = parseISO(event.date);
       (event.tags || []).forEach((tag) => {
         const lower = tag.toLowerCase();
         if (lower.startsWith('#start ') || lower.startsWith('#stop ')) {
           const parts = lower.split(' ');
           const name = parts.slice(1).join(' ').trim();
           if (!dur[name]) {
-            dur[name] = { start: false, stop: false };
+            dur[name] = { startDate: null, stopDate: null };
           }
-          if (lower.startsWith('#start ')) dur[name].start = true;
-          if (lower.startsWith('#stop ')) dur[name].stop = true;
+          if (lower.startsWith('#start ')) {
+            if (!dur[name].startDate || isBefore(eventDate, parseISO(dur[name].startDate))) {
+              dur[name].startDate = event.date;
+            }
+          }
+          if (lower.startsWith('#stop ')) {
+            if (!dur[name].stopDate || isBefore(eventDate, parseISO(dur[name].stopDate))) {
+              dur[name].stopDate = event.date;
+            }
+          }
         }
       });
     });
@@ -325,13 +351,10 @@ function App() {
   };
 
   const handleDeleteEvent = (eventId) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this event?');
-    if (confirmDelete) {
-      const updatedOriginalData = originalTimelineData.filter((event) => event.id !== eventId);
-      setOriginalTimelineData(updatedOriginalData);
-      const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
-      setTimelineData(filtered);
-    }
+    const updatedOriginalData = originalTimelineData.filter((event) => event.id !== eventId);
+    setOriginalTimelineData(updatedOriginalData);
+    const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
+    setTimelineData(filtered);
   };
 
   const getUpcomingHistoricalEvents = (count) => {
@@ -473,7 +496,6 @@ function App() {
     setTimelineData(filtered);
   };
 
-  // No separators, center aligned upcoming lines, lines may wrap:
   let upcomingLines = [];
   for (let i = 0; i < combinedUpcomingEventsList.length; i++) {
     const event = combinedUpcomingEventsList[i];
@@ -482,6 +504,9 @@ function App() {
     }`;
     upcomingLines.push(displayText);
   }
+
+  // Slightly larger arrow and center vertically with "Upcoming"
+  const arrowSymbol = showUpcoming ? '˄' : '˅';
 
   return (
     <div className="container">
@@ -517,8 +542,8 @@ function App() {
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
-            <div style={{position:'sticky', top:0, background:'var(--bg-primary)', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
-              <button className="close-modal-button" onClick={() => setShowInfoModal(false)}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
+              <button className="close-modal-button" onClick={() => setShowInfoModal(false)} style={{pointerEvents:'auto'}}>
                 Close
               </button>
             </div>
@@ -547,7 +572,7 @@ function App() {
               Use '+' to OR groups of search terms.  Spaces between text from timeline event descriptions, dates, or tags will AND terms together in groups.  Search to find events then pin for review.
             </p>
             <p><strong>Pinned events:</strong><br/>
-              Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile).  Search and pin events to create a custom timeline view of events in chronologocal order.  
+              Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile).  Search and pin events to create a custom timeline view of events in chronological order.  
             </p>
           </div>
         </div>
@@ -565,13 +590,14 @@ function App() {
               toggleUpcoming();
             }
           }}
+          style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem'}}
         >
-          Upcoming
+          <span>Upcoming</span><span style={{fontSize:'1.5rem', lineHeight:'1', display:'inline-block'}}>{arrowSymbol}</span>
         </h2>
         {showUpcoming && (
           <>
             <div className="sort-toggle">
-              <span>Sort by: </span>
+              <span>Sorting by: </span>
               <button onClick={toggleUpcomingSortMode} className="sort-button">
                 {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute Chronological'}
               </button>
@@ -592,7 +618,7 @@ function App() {
               type="text"
               id="search"
               className="search-input"
-              placeholder="Search timeline events here..."
+              placeholder="Search timeline events..."
               value={searchQuery}
               onFocus={() => showSearchSuggestions && searchSuggestions.length > 0 && setShowSearchSuggestions(true)}
               onChange={handleSearchChange}
@@ -636,7 +662,8 @@ function App() {
 
       <div id="timeline-section">
         <div className="timeline-controls">
-          <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event">
+          {/* revert + sign back to original size (before last change) */}
+          <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event" style={{fontSize:'2rem'}}>
             +
           </div>
           <div className="right-controls">
@@ -664,7 +691,6 @@ function App() {
             const isFutureEvent = isAfter(eventDate, startOfDay(now));
             let items = [];
 
-            // Put the event first
             items.push(
               <TimelineItem
                 key={event.id}
@@ -679,11 +705,11 @@ function App() {
                 isMobile={isMobile}
                 allTags={allTags}
                 durations={durations}
+                originalTimelineData={originalTimelineData}
                 ref={(el) => (itemRefs.current[event.id] = el)}
               />
             );
 
-            // If current event is future and previous event was past, add label AFTER this event
             if (isFutureEvent && index > 0) {
               const prevEventDate = parseISO(timelineDataWithToday[index - 1].date);
               const wasPastEvent = isBefore(prevEventDate, startOfDay(now));
@@ -724,7 +750,10 @@ function App() {
                 <div
                   className="context-menu-item"
                   onClick={() => {
-                    handleDeleteEvent(contextMenu.eventId);
+                    const confirmDelete = window.confirm('Are you sure you want to delete this event?');
+                    if (confirmDelete) {
+                      handleDeleteEvent(contextMenu.eventId);
+                    }
                     setContextMenu({ ...contextMenu, visible: false });
                   }}
                 >
@@ -818,7 +847,10 @@ function App() {
             return (
               <>
                 <button onClick={() => {
-                  handleDeleteEvent(contextMenu.eventId);
+                  const confirmDelete = window.confirm('Are you sure you want to delete this event?');
+                  if (confirmDelete) {
+                    handleDeleteEvent(contextMenu.eventId);
+                  }
                   setContextMenu({ ...contextMenu, visible: false });
                 }} className="option-button">
                   Delete
@@ -894,7 +926,7 @@ function App() {
 }
 
 const TimelineItem = React.forwardRef(function TimelineItem(
-  { event, onUpdateEvent, onTogglePin, onDeleteEvent, onContextMenu, onDeleteTag, onEditTag, onTagEdited, isMobile, allTags, durations },
+  { event, onUpdateEvent, onTogglePin, onDeleteEvent, onContextMenu, onDeleteTag, onEditTag, onTagEdited, isMobile, allTags, durations, originalTimelineData },
   ref
 ) {
   const [isEditing, setIsEditing] = useState(event.isNew || false);
@@ -917,15 +949,19 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   const [tagsFinalized, setTagsFinalized] = useState(false);
 
   useEffect(() => {
+    setEditedText(event.text.toLowerCase());
+    setEditedTags((event.tags || []).map(t => t.toLowerCase()));
+  }, [event]);
+
+  useEffect(() => {
     const handleClickOutside = (eventOutside) => {
+      if (!isEditing) return;
       if (editRef.current && !editRef.current.contains(eventOutside.target)) {
-        if (isEditing) {
-          if (!tagsFinalized) {
-            finalizeTagInput();
-            setTagsFinalized(true);
-          } else {
-            handleSave();
-          }
+        if (tagBeingEdited || newTagInput.trim()) {
+          finalizeTagInput();
+          setTagsFinalized(true);
+        } else {
+          handleSave(true);
         }
       }
     };
@@ -933,7 +969,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isEditing, editedText, editedDate, editedTags, newTagInput, tagBeingEdited, tagEditInput, tagsFinalized]);
+  }, [isEditing, editedText, editedDate, editedTags, newTagInput, tagBeingEdited, tagsFinalized]);
 
   useEffect(() => {
     if (isEditing) {
@@ -952,6 +988,10 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     }
     if (tagBeingEdited && tagEditInput.trim()) {
       handleFinishTagEdit();
+    }
+    if (tagBeingEdited && !tagEditInput.trim()) {
+      setTagBeingEdited(null);
+      setTagEditInput('');
     }
   };
 
@@ -980,20 +1020,30 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     if (query.startsWith('#start ') || query.startsWith('#stop ')) {
       const prefix = query.startsWith('#start ') ? '#start ' : '#stop ';
       const namePart = query.slice(prefix.length).trim();
-      durationSuggestions = Object.keys(durations).filter(dName => {
-        const d = durations[dName];
-        return (!d || (d && !(d.start && d.stop))) && dName.includes(namePart);
-      }).map(dName => prefix + dName);
+      const candidateDurations = Object.keys(durations);
+      const filteredByName = candidateDurations.filter(dName => dName.includes(namePart));
+      const prefixed = filteredByName.map(dName => prefix + dName);
+      durationSuggestions = prefixed.filter(p => !editedTags.includes(p));
     }
 
     const allSugs = [...normalSuggestions, ...durationSuggestions];
     return allSugs.slice(0, 10);
   };
 
-  const handleSave = () => {
+  const handleSave = (fromOutsideClick = false) => {
     if (!editedText.trim()) {
-      alert('Event text cannot be empty.');
-      return;
+      if (event.isNew) {
+        const shouldContinueEditing = window.confirm('Text is required. Cancel creation of this event?');
+        if (!shouldContinueEditing) {
+          onDeleteEvent(event.id);
+          return;
+        } else {
+          return;
+        }
+      } else {
+        alert('Event text cannot be empty.');
+        return;
+      }
     }
     const parsedDate = new Date(editedDate);
     if (isNaN(parsedDate.getTime())) {
@@ -1018,7 +1068,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
         handleAddTag(newTagInput.trim());
         setNewTagInput('');
       } else {
-        if (!tagsFinalized) {
+        if (!tagsFinalized && (tagBeingEdited || newTagInput.trim())) {
           finalizeTagInput();
           setTagsFinalized(true);
         } else {
@@ -1034,11 +1084,9 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       alert('Invalid special tag. Only "#start name" or "#stop name" allowed when using "#".');
       return;
     }
-    if (tag.startsWith('@')) {
-      if (tag.length <= 1) {
-        alert('Invalid person tag. Must be "@name".');
-        return;
-      }
+    if (tag.startsWith('@') && tag.length <= 1) {
+      alert('Invalid person tag. Must be "@name".');
+      return;
     }
     if (!tag.startsWith('#') && !tag.startsWith('@')) {
       if (tag.includes('@') || tag.includes('#')) {
@@ -1051,6 +1099,23 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     if ((tag.startsWith('#start ') || tag.startsWith('#stop ')) && hasStartOrStop) {
       alert('Cannot have both #start and #stop tags on the same event.');
       return;
+    }
+
+    if (tag.startsWith('#stop ')) {
+      const prefix = '#stop ';
+      const name = tag.slice(prefix.length).trim();
+      const thisEventDate = parseISO(formatDateForInputBack(editedDate));
+      const hasValidStart = originalTimelineData.some(e => {
+        if ((e.tags || []).some(et => et.toLowerCase() === (`#start ${name}`))) {
+          const eDate = parseISO(e.date);
+          return isBefore(eDate, thisEventDate);
+        }
+        return false;
+      });
+      if (!hasValidStart) {
+        alert(`You cannot add "${tag}" because there is no earlier "#start ${name}" tag in the timeline.`);
+        return;
+      }
     }
 
     if (!editedTags.includes(tag)) {
@@ -1099,9 +1164,11 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   };
 
   const handleTouchStart = () => {
-    touchTimeout.current = setTimeout(() => {
-      setShowOptions(true);
-    }, 700);
+    if (!event.isToday) {
+      touchTimeout.current = setTimeout(() => {
+        setShowOptions(true);
+      }, 700);
+    }
   };
 
   const handleTouchEnd = () => {
@@ -1112,7 +1179,10 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     if (option === 'pin') {
       onTogglePin(event);
     } else if (option === 'delete') {
-      onDeleteEvent(event.id);
+      const confirmDelete = window.confirm('Are you sure you want to delete this event?');
+      if (confirmDelete) {
+        onDeleteEvent(event.id);
+      }
     }
     setShowOptions(false);
   };
@@ -1120,12 +1190,13 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   return (
     <div
       className="timeline-item"
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => { if(!event.isToday) setIsHovered(true); }}
       onMouseLeave={() => setIsHovered(false)}
-      onContextMenu={(e) => onContextMenu(e, event.id)}
+      onContextMenu={(e) => { if(!event.isToday) onContextMenu(e, event.id); }}
       onTouchStart={isMobile ? handleTouchStart : undefined}
       onTouchEnd={isMobile ? handleTouchEnd : undefined}
       ref={ref}
+      style={event.isToday ? { pointerEvents:'none', cursor:'default' } : {}}
     >
       <div className="timeline-marker"></div>
       <div
@@ -1244,9 +1315,9 @@ const TimelineItem = React.forwardRef(function TimelineItem(
                 <span
                   key={tag}
                   className={classForTag(tag)}
-                  onContextMenu={(e) => tagContextMenu(e, tag)}
+                  onContextMenu={(e) => !event.isToday && tagContextMenu(e, tag)}
                   onTouchStart={
-                    isMobile
+                    isMobile && !event.isToday
                       ? (evt) => {
                           const { clientX, clientY } = evt.touches && evt.touches[0] ? evt.touches[0] : evt;
                           const fakeEvent = {
@@ -1269,7 +1340,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
           </>
         )}
 
-        {!isEditing && (isHovered || event.pinned) && (
+        {!isEditing && !event.isToday && (isHovered || event.pinned) && (
           <div className="timeline-actions">
             <button
               className="pin-button"
@@ -1286,7 +1357,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
         )}
       </div>
 
-      {isMobile && showOptions && !showTagDeleteMenu && (
+      {isMobile && showOptions && !showTagDeleteMenu && !event.isToday && (
         <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh'}}>
           <>
             <button onClick={() => handleOptionSelect('pin')} className="option-button">
@@ -1362,6 +1433,10 @@ function formatDateForInput(dateString) {
   const offset = date.getTimezoneOffset();
   const adjustedDate = new Date(date.getTime() - offset * 60000);
   return adjustedDate.toISOString().slice(0, 16);
+}
+
+function formatDateForInputBack(editedDate) {
+  return editedDate + ':00';
 }
 
 export default App;
