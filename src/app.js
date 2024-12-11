@@ -11,7 +11,7 @@ import {
   compareAsc,
 } from 'date-fns';
 import { FaThumbtack } from 'react-icons/fa';
-import './App.css';
+import './app.css';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
