@@ -119,7 +119,6 @@ function App() {
   }, [showInfoModal]);
 
   useEffect(() => {
-    // Prevent auto-zooming and ensure no user scaling
     const meta = document.querySelector('meta[name="viewport"]');
     if (meta) {
       meta.setAttribute("content","width=device-width, initial-scale=1.0, user-scalable=no");
@@ -553,8 +552,8 @@ function App() {
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
-            <div style={{position:'sticky', top:0, background:'var(--bg-primary)', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
-              <button className="close-modal-button" onClick={() => setShowInfoModal(false)}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
+              <button className="close-modal-button" onClick={() => setShowInfoModal(false)} style={{pointerEvents:'auto'}}>
                 Close
               </button>
             </div>
@@ -601,7 +600,7 @@ function App() {
               toggleUpcoming();
             }
           }}
-          style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem'}}
+          style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem', color:'black'}}
         >
           <span>Upcoming</span><span style={{fontSize:'1.5rem', lineHeight:'1', display:'inline-block'}}>{arrowSymbol}</span>
         </h2>
@@ -767,7 +766,7 @@ function App() {
                     setContextMenu({ ...contextMenu, visible: false });
                   }}
                 >
-                  Delete
+                  Delete Event
                 </div>
                 {eventTags.length > 0 && (
                   <div
@@ -863,7 +862,7 @@ function App() {
                   }
                   setContextMenu({ ...contextMenu, visible: false });
                 }} className="option-button">
-                  Delete
+                  Delete Event
                 </button>
                 {eventTags.length > 0 && (
                   <button onClick={() => {
@@ -1030,10 +1029,24 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     if (query.startsWith('#start ') || query.startsWith('#stop ')) {
       const prefix = query.startsWith('#start ') ? '#start ' : '#stop ';
       const namePart = query.slice(prefix.length).trim();
-      const candidateDurations = Object.keys(durations);
-      const filteredByName = candidateDurations.filter(dName => dName.includes(namePart));
-      const prefixed = filteredByName.map(dName => prefix + dName);
-      durationSuggestions = prefixed.filter(p => !editedTags.includes(p));
+
+      // Additional check: no duplicates of any duration name
+      // If the duration name already exists as #start name or #stop name anywhere, block it.
+      const nameExists = originalTimelineData.some(d =>
+        (d.tags || []).some(existingTag => {
+          const lower = existingTag.toLowerCase();
+          if ((lower.startsWith('#start ') || lower.startsWith('#stop '))) {
+            const existingName = lower.split(' ').slice(1).join(' ');
+            return existingName.trim() === namePart;
+          }
+          return false;
+        })
+      );
+      if (!nameExists) {
+        // If it doesn't exist, we can suggest it
+        // But if nameExists is true, we do not suggest it because it's already used
+        durationSuggestions = [prefix + namePart];
+      }
     }
 
     const allSugs = [...normalSuggestions, ...durationSuggestions];
@@ -1111,19 +1124,23 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       return;
     }
 
-    if (tag.startsWith('#stop ')) {
-      const prefix = '#stop ';
+    // Check for duplicates across entire data:
+    if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
+      const prefix = tag.startsWith('#start ') ? '#start ' : '#stop ';
       const name = tag.slice(prefix.length).trim();
-      const thisEventDate = parseISO(formatDateForInputBack(editedDate));
-      const hasValidStart = originalTimelineData.some(e => {
-        if ((e.tags || []).some(et => et.toLowerCase() === (`#start ${name}`))) {
-          const eDate = parseISO(e.date);
-          return isBefore(eDate, thisEventDate);
-        }
-        return false;
-      });
-      if (!hasValidStart) {
-        alert(`You cannot add "${tag}" because there is no earlier "#start ${name}" tag in the timeline.`);
+
+      const nameExistsGlobal = originalTimelineData.some(d =>
+        (d.tags || []).some(existingTag => {
+          const lower = existingTag.toLowerCase();
+          if ((lower.startsWith('#start ') || lower.startsWith('#stop '))) {
+            const existingName = lower.split(' ').slice(1).join(' ');
+            return existingName.trim() === name;
+          }
+          return false;
+        })
+      );
+      if (nameExistsGlobal) {
+        alert(`A duration with name "${name}" already exists. You cannot add another #start or #stop for the same duration name.`);
         return;
       }
     }
@@ -1375,7 +1392,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
               {event.pinned ? 'Unpin' : 'Pin'}
             </button>
             <button onClick={() => handleOptionSelect('delete')} className="option-button">
-              Delete
+              Delete Event
             </button>
             {eventTags.length > 0 && (
               <button onClick={() => {
