@@ -104,7 +104,12 @@ function App() {
 
   const itemRefs = useRef({});
 
-  // Re-add logic to prevent scrolling behind modal
+  useEffect(() => {
+    updateAllTags(originalTimelineData);
+    updateDurations(originalTimelineData);
+    updateSearchableWords(originalTimelineData);
+  }, [originalTimelineData]);
+
   useEffect(() => {
     if (showInfoModal) {
       document.body.style.overflow = 'hidden';
@@ -114,10 +119,17 @@ function App() {
   }, [showInfoModal]);
 
   useEffect(() => {
-    updateAllTags(originalTimelineData);
-    updateDurations(originalTimelineData);
-    updateSearchableWords(originalTimelineData);
-  }, [originalTimelineData]);
+    // Prevent auto-zooming and ensure no user scaling
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) {
+      meta.setAttribute("content","width=device-width, initial-scale=1.0, user-scalable=no");
+    } else {
+      const m = document.createElement('meta');
+      m.name = 'viewport';
+      m.content = 'width=device-width, initial-scale=1.0, user-scalable=no';
+      document.head.appendChild(m);
+    }
+  }, []);
 
   const updateAllTags = (data) => {
     const tagsSet = new Set();
@@ -505,7 +517,6 @@ function App() {
     upcomingLines.push(displayText);
   }
 
-  // Slightly larger arrow and center vertically with "Upcoming"
   const arrowSymbol = showUpcoming ? '˄' : '˅';
 
   return (
@@ -542,8 +553,8 @@ function App() {
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
-              <button className="close-modal-button" onClick={() => setShowInfoModal(false)} style={{pointerEvents:'auto'}}>
+            <div style={{position:'sticky', top:0, background:'var(--bg-primary)', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+              <button className="close-modal-button" onClick={() => setShowInfoModal(false)}>
                 Close
               </button>
             </div>
@@ -662,7 +673,6 @@ function App() {
 
       <div id="timeline-section">
         <div className="timeline-controls">
-          {/* revert + sign back to original size (before last change) */}
           <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event" style={{fontSize:'2rem'}}>
             +
           </div>
@@ -1187,16 +1197,17 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     setShowOptions(false);
   };
 
+  const showPin = (!isEditing && !event.isToday && ((isMobile ? false : isHovered) || event.pinned));
+
   return (
     <div
       className="timeline-item"
-      onMouseEnter={() => { if(!event.isToday) setIsHovered(true); }}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => { if(!event.isToday && !isMobile) setIsHovered(true); }}
+      onMouseLeave={() => { if(!isMobile) setIsHovered(false); }}
       onContextMenu={(e) => { if(!event.isToday) onContextMenu(e, event.id); }}
       onTouchStart={isMobile ? handleTouchStart : undefined}
       onTouchEnd={isMobile ? handleTouchEnd : undefined}
       ref={ref}
-      style={event.isToday ? { pointerEvents:'none', cursor:'default' } : {}}
     >
       <div className="timeline-marker"></div>
       <div
@@ -1340,7 +1351,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
           </>
         )}
 
-        {!isEditing && !event.isToday && (isHovered || event.pinned) && (
+        {showPin && (
           <div className="timeline-actions">
             <button
               className="pin-button"
