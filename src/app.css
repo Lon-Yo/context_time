@@ -413,16 +413,14 @@ h1 {
   margin-top: 0.5rem;
 }
 
-/* Remove hover color change for upcoming header */
 .toggle-upcoming {
   font-size: 1.5rem;
-  color: black; /* stays black */
+  color: black;
   cursor: pointer;
   text-align: center;
   transition: color 0.2s;
 }
 
-/* Sorting buttons always black background with white text */
 .sort-button {
   background-color: #000000;
   color: #ffffff;
@@ -439,7 +437,6 @@ h1 {
   color: #ffffff;
 }
 
-/* The upcoming-line styling remains same */
 .upcoming-line {
   white-space: nowrap;
   overflow: auto;
@@ -529,6 +526,8 @@ h1 {
   justify-content: center;
   align-items: center;
   overflow: hidden; /* Prevent background scroll */
+  touch-action: none; /* Prevent touch scrolling on iOS Safari */
+  overscroll-behavior: contain; /* Prevent overscroll bounce */
 }
 
 .info-modal {

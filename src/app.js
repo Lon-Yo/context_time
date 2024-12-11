@@ -113,8 +113,13 @@ function App() {
   useEffect(() => {
     if (showInfoModal) {
       document.body.style.overflow = 'hidden';
+      // On iOS Safari, prevent background scroll while modal is open:
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
     } else {
       document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
     }
   }, [showInfoModal]);
 
@@ -606,7 +611,8 @@ function App() {
         </h2>
         {showUpcoming && (
           <>
-            <div className="sort-toggle">
+            {/* Center these elements */}
+            <div className="sort-toggle" style={{display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
               <span>Sorting by: </span>
               <button onClick={toggleUpcomingSortMode} className="sort-button">
                 {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute Chronological'}
@@ -1030,9 +1036,8 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       const prefix = query.startsWith('#start ') ? '#start ' : '#stop ';
       const namePart = query.slice(prefix.length).trim();
 
-      // Additional check: no duplicates of any duration name
-      // If the duration name already exists as #start name or #stop name anywhere, block it.
-      const nameExists = originalTimelineData.some(d =>
+      // Additional check for duplicates across entire dataset:
+      const nameExistsGlobal = originalTimelineData.some(d =>
         (d.tags || []).some(existingTag => {
           const lower = existingTag.toLowerCase();
           if ((lower.startsWith('#start ') || lower.startsWith('#stop '))) {
@@ -1042,9 +1047,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
           return false;
         })
       );
-      if (!nameExists) {
-        // If it doesn't exist, we can suggest it
-        // But if nameExists is true, we do not suggest it because it's already used
+      if (!nameExistsGlobal) {
         durationSuggestions = [prefix + namePart];
       }
     }
@@ -1124,11 +1127,9 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       return;
     }
 
-    // Check for duplicates across entire data:
     if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
       const prefix = tag.startsWith('#start ') ? '#start ' : '#stop ';
       const name = tag.slice(prefix.length).trim();
-
       const nameExistsGlobal = originalTimelineData.some(d =>
         (d.tags || []).some(existingTag => {
           const lower = existingTag.toLowerCase();
