@@ -80,7 +80,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPinsOnly, setShowPinsOnly] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
-  const [showUpcoming, setShowUpcoming] = useState(false);
+  
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -92,7 +92,12 @@ function App() {
   });
   const [upcomingSortMode, setUpcomingSortMode] = useState('month-day');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // New state for modals
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showUpcomingModal, setShowUpcomingModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+
   const [newEventId, setNewEventId] = useState(null);
 
   const [allTags, setAllTags] = useState([]);
@@ -111,9 +116,8 @@ function App() {
   }, [originalTimelineData]);
 
   useEffect(() => {
-    if (showInfoModal) {
+    if (showInfoModal || showUpcomingModal || showStatsModal) {
       document.body.style.overflow = 'hidden';
-      // On iOS Safari, prevent background scroll while modal is open:
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
     } else {
@@ -121,7 +125,7 @@ function App() {
       document.body.style.position = '';
       document.body.style.width = '';
     }
-  }, [showInfoModal]);
+  }, [showInfoModal, showUpcomingModal, showStatsModal]);
 
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]');
@@ -459,9 +463,12 @@ function App() {
   const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
   const hasMultiplePins = pinnedCount >= 2;
 
-  const toggleUpcoming = () => {
-    setShowUpcoming((prev) => !prev);
-  };
+  // Stats text for modal
+  const statsText = `${totalEvents} events spanning ${totalYears} years (${
+    firstEventDate ? format(firstEventDate, 'MMMM d, yyyy') : ''
+  } - ${
+    lastEventDate ? format(lastEventDate, 'MMMM d, yyyy') : ''
+  })`;
 
   const handleContextMenu = (e, eventId, tag = null) => {
     e.preventDefault();
@@ -521,39 +528,41 @@ function App() {
     upcomingLines.push(displayText);
   }
 
-  const arrowSymbol = showUpcoming ? '˄' : '˅';
-
   return (
     <div className="container">
       <header className="header-row">
         <h1>ContexTime</h1>
         <div id="current-datetime">{format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}</div>
-        {firstEventDate && lastEventDate && (
-          <div id="stats-section">
-            <p>
-              {`${totalEvents} events spanning ${totalYears} years (${
-                firstEventDate ? format(firstEventDate, 'MMMM d, yyyy') : ''
-              } - ${
-                lastEventDate ? format(lastEventDate, 'MMMM d, yyyy') : ''
-              })`}
-            </p>
-            <div
-              className="more-info"
-              onClick={() => setShowInfoModal(true)}
-              role="button"
-              tabIndex={0}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  setShowInfoModal(true);
-                }
-              }}
-            >
-              More info
-            </div>
+        {/* The links row: Upcoming, Stats, More info */}
+        <div className="links-row" style={{display:'flex',gap:'1rem',justifyContent:'center',marginTop:'0.5rem'}}>
+          <div
+            className="more-info" 
+            onClick={() => setShowUpcomingModal(true)}
+            role="button"
+            tabIndex={0}
+          >
+            Upcoming
           </div>
-        )}
+          <div
+            className="more-info"
+            onClick={() => setShowStatsModal(true)}
+            role="button"
+            tabIndex={0}
+          >
+            Stats
+          </div>
+          <div
+            className="more-info"
+            onClick={() => setShowInfoModal(true)}
+            role="button"
+            tabIndex={0}
+          >
+            More info
+          </div>
+        </div>
       </header>
 
+      {/* More info modal (text unchanged) */}
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
@@ -593,28 +602,19 @@ function App() {
         </div>
       )}
 
-      <div className="upcoming-section">
-        <h2
-          className="toggle-upcoming"
-          onClick={toggleUpcoming}
-          role="button"
-          aria-expanded={showUpcoming}
-          tabIndex={0}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              toggleUpcoming();
-            }
-          }}
-          style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem', color:'black'}}
-        >
-          <span>Upcoming</span><span style={{fontSize:'1.5rem', lineHeight:'1', display:'inline-block'}}>{arrowSymbol}</span>
-        </h2>
-        {showUpcoming && (
-          <>
-            {/* Center these elements */}
-            <div className="sort-toggle" style={{display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
-              <span>Sorting by: </span>
-              <button onClick={toggleUpcomingSortMode} className="sort-button">
+      {/* Upcoming modal */}
+      {showUpcomingModal && (
+        <div className="info-modal-overlay" onClick={() => setShowUpcomingModal(false)}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
+              <button className="close-modal-button" onClick={() => setShowUpcomingModal(false)} style={{pointerEvents:'auto'}}>
+                Close
+              </button>
+            </div>
+            <h2>Upcoming</h2>
+            <div className="sort-toggle" style={{display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center',gap:'0.5rem'}}>
+              <span>Sorting by:</span>
+              <button onClick={toggleUpcomingSortMode} className="sort-button" style={{marginLeft:'0.5rem'}}>
                 {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute Chronological'}
               </button>
             </div>
@@ -623,9 +623,24 @@ function App() {
                 {line}
               </div>
             ))}
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats modal */}
+      {showStatsModal && (
+        <div className="info-modal-overlay" onClick={() => setShowStatsModal(false)}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
+              <button className="close-modal-button" onClick={() => setShowStatsModal(false)} style={{pointerEvents:'auto'}}>
+                Close
+              </button>
+            </div>
+            <h2>Stats</h2>
+            <p>{statsText}</p>
+          </div>
+        </div>
+      )}
 
       <div className="row center">
         <div className="form-group">
@@ -678,7 +693,7 @@ function App() {
 
       <div id="timeline-section">
         <div className="timeline-controls">
-          <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event" style={{fontSize:'2rem'}}>
+          <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event">
             +
           </div>
           <div className="right-controls">
@@ -1036,7 +1051,6 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       const prefix = query.startsWith('#start ') ? '#start ' : '#stop ';
       const namePart = query.slice(prefix.length).trim();
 
-      // Additional check for duplicates across entire dataset:
       const nameExistsGlobal = originalTimelineData.some(d =>
         (d.tags || []).some(existingTag => {
           const lower = existingTag.toLowerCase();

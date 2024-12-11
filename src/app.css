@@ -60,20 +60,10 @@ h1 {
   cursor: default;
 }
 
-#stats-section {
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-#stats-section p {
-  margin-top: 0.5rem;
-}
-
 .more-info {
   color: var(--primary-color);
   cursor: pointer;
   text-decoration: underline;
-  margin-top: 0.5rem;
 }
 
 .more-info:hover {
@@ -525,9 +515,9 @@ h1 {
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden; /* Prevent background scroll */
-  touch-action: none; /* Prevent touch scrolling on iOS Safari */
-  overscroll-behavior: contain; /* Prevent overscroll bounce */
+  overflow: hidden; 
+  touch-action: none; 
+  overscroll-behavior: contain; 
 }
 
 .info-modal {
@@ -539,7 +529,7 @@ h1 {
   margin: 5% auto;
   position: relative;
   z-index: 1001;
-  overflow-y: auto; /* Only modal text scrolls */
+  overflow-y: auto;
   max-height: 80vh;
 }
 
