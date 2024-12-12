@@ -590,7 +590,7 @@ function App() {
     {
       id: uuidv4(),
       date: '2025-01-01T12:00:00',
-      text: 'Event in the far future.',
+      text: 'Event in the future.',
       pinned: false,
       tags: [],
     },
