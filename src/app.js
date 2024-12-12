@@ -583,24 +583,23 @@ function App() {
     {
       id: uuidv4(),
       date: '2020-01-01T10:00:00',
-      text: 'a future event marking the end of test_duration.',
+      text: 'a event marking the end of test_duration.',
       pinned: false,
       tags: ['#stop test_duration'],
     },
-    // Add a couple future events
     {
       id: uuidv4(),
-      date: '2040-09-01T12:00:00',
-      text: 'an event in the far future.',
+      date: '2025-01-01T12:00:00',
+      text: 'Event in the far future.',
       pinned: false,
       tags: [],
     },
     {
       id: uuidv4(),
-      date: '2045-01-15T09:30:00',
-      text: 'another far future event.',
+      date: '2024-12-15T09:30:00',
+      text: 'Another future event.',
       pinned: false,
-      tags: []
+      tags: ['@intralox intelligence','team meetings']
     },
   ];
 
@@ -1144,7 +1143,7 @@ function App() {
             </p>
 
             <p><strong>Future:</strong><br/>
-              {futureEventsWithinSevenDaysList.length === 0 ? 'No upcoming future events within 7 days.' :
+              {futureEventsWithinSevenDaysList.length === 0 ? 'No upcoming future events within 30 days.' :
                 futureEventsWithinSevenDaysList.map((event, i) => {
                   const displayText = `${format(parseISO(event.date), 'MMMM d, yyyy h:mm a')} - ${event.text}`;
                   return (
