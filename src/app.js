@@ -587,6 +587,21 @@ function App() {
       pinned: false,
       tags: ['#stop test_duration'],
     },
+    // Add a couple future events
+    {
+      id: uuidv4(),
+      date: '2040-09-01T12:00:00',
+      text: 'an event in the far future.',
+      pinned: false,
+      tags: [],
+    },
+    {
+      id: uuidv4(),
+      date: '2045-01-15T09:30:00',
+      text: 'another far future event.',
+      pinned: false,
+      tags: []
+    },
   ];
 
   const [originalTimelineData, setOriginalTimelineData] = useState(initialData);
@@ -888,6 +903,12 @@ function App() {
     setTimelineData(filtered);
   };
 
+  function addDays(date, days) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
   const getUpcomingHistoricalEvents = (count) => {
     const today = startOfDay(new Date());
     const historicalEvents = originalTimelineData.map((event) => {
@@ -908,15 +929,12 @@ function App() {
       return { ...event, anniversary, daysUntil, years };
     });
 
-    // Sort based on upcomingSortMode
     if (upcomingSortMode === 'month-day') {
-      // sort by month-day ignoring year
       return historicalEvents
         .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
         .sort((a, b) => a.daysUntil - b.daysUntil)
         .slice(0, count);
     } else {
-      // absolute chronological from earliest to latest in actual absolute time
       return historicalEvents
         .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
         .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
@@ -924,25 +942,17 @@ function App() {
     }
   };
 
-  function addDays(date, days) {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-  }
-
   const getFutureEventsWithinSevenDays = (count) => {
     const today = startOfDay(new Date());
-    const sevenDaysLater = addDays(today, 30); // As per user's description: "only for 30 days in the future"
-    
-    // Sort based on upcomingSortMode
+    const thirtyDaysLater = addDays(today, 30);
+
     const futureEvents = originalTimelineData
       .filter((event) => {
         const eventDate = parseISO(event.date);
-        return isAfter(eventDate, today) && isBefore(eventDate, sevenDaysLater);
+        return isAfter(eventDate, today) && isBefore(eventDate, thirtyDaysLater);
       });
 
     if (upcomingSortMode === 'month-day') {
-      // Sort by how soon they occur (days until)
       const withDaysUntil = futureEvents.map(event => {
         const eventDate = parseISO(event.date);
         const daysUntil = differenceInDays(eventDate, today);
@@ -952,7 +962,6 @@ function App() {
         .sort((a, b) => a.daysUntil - b.daysUntil)
         .slice(0, count);
     } else {
-      // absolute chronological
       return futureEvents
         .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
         .slice(0, count);
@@ -962,8 +971,6 @@ function App() {
   const upcomingHistoricalEventsList = getUpcomingHistoricalEvents(5);
   const futureEventsWithinSevenDaysList = getFutureEventsWithinSevenDays(5);
 
-  const today = startOfDay(new Date());
-  
   const visibleEvents = timelineData.filter((event) => !event.isToday);
   const totalEvents = visibleEvents.length;
   const sortedByDate = [...visibleEvents].sort((a, b) =>
@@ -1035,6 +1042,8 @@ function App() {
   };
 
   const itemRefs = useRef({});
+
+  let futureLabelShown = false;
 
   return (
     <div className="container">
@@ -1137,8 +1146,6 @@ function App() {
             <p><strong>Future:</strong><br/>
               {futureEventsWithinSevenDaysList.length === 0 ? 'No upcoming future events within 7 days.' :
                 futureEventsWithinSevenDaysList.map((event, i) => {
-                  const eventDate = parseISO(event.date);
-                  const daysUntil = differenceInDays(eventDate, startOfDay(new Date()));
                   const displayText = `${format(parseISO(event.date), 'MMMM d, yyyy h:mm a')} - ${event.text}`;
                   return (
                     <div key={i} className="upcoming-line" style={{whiteSpace:'normal', overflow:'visible'}}>
@@ -1263,10 +1270,13 @@ function App() {
                   originalTimelineData={originalTimelineData}
                   ref={(el) => (itemRefs.current[event.id] = el)}
                 />
-                {isFutureEvent && index > 0 && (
-                  <div className="timeline-label future-label" key={`future-label-${event.id}`}>
-                    To the future...
-                  </div>
+                {isFutureEvent && !futureLabelShown && (
+                  <>
+                    {futureLabelShown = true}
+                    <div className="timeline-label future-label" key={`future-label-${event.id}`}>
+                      To the future...
+                    </div>
+                  </>
                 )}
               </React.Fragment>
             );
