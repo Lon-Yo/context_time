@@ -11,7 +11,7 @@ import {
   startOfDay,
   compareAsc,
 } from 'date-fns';
-import { FaThumbtack } from 'react-icons/fa';
+import { FaThumbtack, FaBars, FaComments, FaSearch, FaCalendar } from 'react-icons/fa';
 import './app.css';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -634,6 +634,11 @@ function App() {
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchableWordsRef = useRef([]);
 
+  const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'tags'
+  const [hamburgerOpen, setHamburgerOpen] = useState(false);
+
+  const [isChatMode, setIsChatMode] = useState(false); // false = search mode, true = chat mode
+
   useEffect(() => {
     updateAllTags(originalTimelineData);
     updateDurations(originalTimelineData);
@@ -878,21 +883,26 @@ function App() {
   };
 
   const handleAddNewEvent = () => {
-    const defaultDate = format(new Date(), "yyyy-MM-dd'T'HH:mm");
-    const newEvent = {
-      id: uuidv4(),
-      date: defaultDate,
-      text: '',
-      pinned: false,
-      isNew: true,
-      tags: [],
-    };
-    const updatedOriginalData = [newEvent, ...originalTimelineData];
-    setOriginalTimelineData(updatedOriginalData);
+    if (viewMode === 'timeline') {
+      const defaultDate = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+      const newEvent = {
+        id: uuidv4(),
+        date: defaultDate,
+        text: '',
+        pinned: false,
+        isNew: true,
+        tags: [],
+      };
+      const updatedOriginalData = [newEvent, ...originalTimelineData];
+      setOriginalTimelineData(updatedOriginalData);
 
-    const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
-    setTimelineData(filtered);
-    setNewEventId(newEvent.id);
+      const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
+      setTimelineData(filtered);
+      setNewEventId(newEvent.id);
+    } else {
+      // Tag view: create new tags (placeholder)
+      alert('Creating new tag (placeholder).');
+    }
   };
 
   const handleDeleteEvent = (eventId) => {
@@ -1044,38 +1054,47 @@ function App() {
 
   let futureLabelShown = false;
 
+  const searchPlaceholder = isChatMode ? 'Chat with search results & pinned...' : (viewMode === 'timeline' ? 'Search timeline events...' : 'Search tags...');
+
+  const handleToggleMode = (mode) => {
+    if (mode === 'chat') {
+      setIsChatMode(true);
+    } else {
+      setIsChatMode(false);
+    }
+  };
+
   return (
     <div className="container">
-      <header className="header-row">
-        <h1>ContexTime</h1>
-        <div id="current-datetime">{format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}</div>
-        <div className="links-row" style={{display:'flex',gap:'1rem',justifyContent:'center',marginTop:'0.5rem'}}>
-          <div
-            className="more-info" 
-            onClick={() => setShowUpcomingModal(true)}
-            role="button"
-            tabIndex={0}
-          >
-            Upcoming
-          </div>
-          <div
-            className="more-info"
-            onClick={() => setShowStatsModal(true)}
-            role="button"
-            tabIndex={0}
-          >
-            Stats
-          </div>
-          <div
-            className="more-info"
-            onClick={() => setShowInfoModal(true)}
-            role="button"
-            tabIndex={0}
-          >
-            More info
-          </div>
+      <header className="header-row" style={{position:'relative'}}>
+        <button
+          className="hamburger-button"
+          onClick={() => setHamburgerOpen(!hamburgerOpen)}
+          aria-label="Menu"
+          title="Menu"
+          style={{position:'absolute', left:'1rem', top:'1rem'}}
+        >
+          <FaBars />
+        </button>
+        <h1 style={{textAlign:'center'}}>Convey-i</h1>
+        <div id="current-datetime" style={{textAlign:'center', marginTop:'0.5rem'}}>
+          {format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}
         </div>
       </header>
+
+      {hamburgerOpen && (
+        <div className="hamburger-menu">
+          <div className="hamburger-menu-item" onClick={() => { setViewMode('timeline'); setHamburgerOpen(false); }}>
+            Timeline View
+          </div>
+          <div className="hamburger-menu-item" onClick={() => { setViewMode('tags'); setHamburgerOpen(false); }}>
+            Tag View
+          </div>
+          <div className="hamburger-menu-item">
+            Sign In (placeholder)
+          </div>
+        </div>
+      )}
 
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
@@ -1085,6 +1104,7 @@ function App() {
                 Close
               </button>
             </div>
+            {/* Modal contents remain identical */}
             <h2>More info</h2>
             <p><strong>Current time:</strong><br/>
               Shows the live date and time based on your browser.
@@ -1119,6 +1139,7 @@ function App() {
                 Close
               </button>
             </div>
+            {/* Modal contents remain identical */}
             <h2>Upcoming</h2>
             <p><strong>Details:</strong><br/>
               Displays recurring historical or future events (up to 5 of each, only for 30 days in the future).  The user may sort based on month-day (ignores year) or absolute chronological order (old to new).  Events for today do not show.
@@ -1166,6 +1187,7 @@ function App() {
                 Close
               </button>
             </div>
+            {/* Modal contents remain identical */}
             <h2>Statistics</h2>
             <p><strong>Details:</strong><br/>
               Shows a summary of the number of events recorded and the duration in time they cover.
@@ -1178,11 +1200,23 @@ function App() {
       <div className="row center">
         <div className="form-group">
           <div id="search-box-container">
+            <div className="left-icons">
+              <FaSearch
+                className="search-icon"
+                style={{fontWeight: isChatMode ? 'normal' : 'bold'}}
+                onClick={() => handleToggleMode('search')}
+              />
+              <FaComments
+                className="chat-icon"
+                style={{fontWeight: isChatMode ? 'bold' : 'normal'}}
+                onClick={() => handleToggleMode('chat')}
+              />
+            </div>
             <input
               type="text"
               id="search"
               className="search-input"
-              placeholder="Search timeline events..."
+              placeholder={searchPlaceholder}
               value={searchQuery}
               onFocus={() => showSearchSuggestions && searchSuggestions.length > 0 && setShowSearchSuggestions(true)}
               onChange={handleSearchChange}
@@ -1198,6 +1232,9 @@ function App() {
                 ✖
               </button>
             )}
+            <div className="right-icon" style={{right:'0.5rem'}}>
+              <FaCalendar />
+            </div>
             {showSearchSuggestions && searchSuggestions.length > 0 && (
               <div className="search-suggestions">
                 {searchSuggestions.map((s) => (
@@ -1218,6 +1255,33 @@ function App() {
         </div>
       </div>
 
+      <div className="row center" style={{marginTop:'1rem',gap:'1rem'}}>
+        <div
+          className="more-info"
+          onClick={() => setShowUpcomingModal(true)}
+          role="button"
+          tabIndex={0}
+        >
+          Upcoming
+        </div>
+        <div
+          className="more-info"
+          onClick={() => setShowStatsModal(true)}
+          role="button"
+          tabIndex={0}
+        >
+          Stats
+        </div>
+        <div
+          className="more-info"
+          onClick={() => setShowInfoModal(true)}
+          role="button"
+          tabIndex={0}
+        >
+          More info
+        </div>
+      </div>
+
       {isMobile && (
         <div className="mobile-instruction">
           Long press events to toggle pins or delete tags & events
@@ -1226,11 +1290,11 @@ function App() {
 
       <div id="timeline-section">
         <div className="timeline-controls">
-          <div className="add-event-text" onClick={handleAddNewEvent} title="Add New Event">
+          <div className="add-event-text" onClick={handleAddNewEvent} title={viewMode === 'timeline' ? "Add New Event" : "Add New Tag"}>
             +
           </div>
           <div className="right-controls">
-            {hasMultiplePins && (
+            {hasMultiplePins && viewMode === 'timeline' && (
               <div
                 className="show-pins-only"
                 onClick={toggleShowPinsOnly}
@@ -1239,48 +1303,56 @@ function App() {
                 {showPinsOnly ? 'Show All' : 'Show Pins Only'}
               </div>
             )}
-            {hasMultiplePins && (
+            {hasMultiplePins && viewMode === 'timeline' && (
               <div className="clear-pins" onClick={handleClearPins} title="Clear All Pins">
                 Clear Pins
               </div>
             )}
           </div>
         </div>
-        <div className="timeline" id="vertical-timeline">
-          <div className="timeline-label history-label">History begins...</div>
-          {timelineDataWithToday.map((event, index) => {
-            const eventDate = parseISO(event.date);
-            const now = new Date();
-            const isFutureEvent = isAfter(eventDate, startOfDay(now));
-            return (
-              <React.Fragment key={event.id}>
-                <TimelineItem
-                  event={event}
-                  onUpdateEvent={handleUpdateEvent}
-                  onTogglePin={handleTogglePin}
-                  onDeleteEvent={handleDeleteEvent}
-                  onContextMenu={handleContextMenu}
-                  onDeleteTag={handleDeleteTagFromEvent}
-                  onEditTag={handleEditTag}
-                  onTagEdited={handleTagEdited}
-                  isMobile={isMobile}
-                  allTags={allTags}
-                  durations={durations}
-                  originalTimelineData={originalTimelineData}
-                  ref={(el) => (itemRefs.current[event.id] = el)}
-                />
-                {isFutureEvent && !futureLabelShown && (
-                  <>
-                    {futureLabelShown = true}
-                    <div className="timeline-label future-label" key={`future-label-${event.id}`}>
-                      To the future...
-                    </div>
-                  </>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+        
+        {viewMode === 'timeline' ? (
+          <div className="timeline" id="vertical-timeline">
+            <div className="timeline-label history-label">History begins...</div>
+            {timelineDataWithToday.map((event) => {
+              const eventDate = parseISO(event.date);
+              const now = new Date();
+              const isFutureEvent = isAfter(eventDate, startOfDay(now));
+              return (
+                <React.Fragment key={event.id}>
+                  <TimelineItem
+                    event={event}
+                    onUpdateEvent={handleUpdateEvent}
+                    onTogglePin={handleTogglePin}
+                    onDeleteEvent={handleDeleteEvent}
+                    onContextMenu={handleContextMenu}
+                    onDeleteTag={handleDeleteTagFromEvent}
+                    onEditTag={handleEditTag}
+                    onTagEdited={handleTagEdited}
+                    isMobile={isMobile}
+                    allTags={allTags}
+                    durations={durations}
+                    originalTimelineData={originalTimelineData}
+                    ref={(el) => (itemRefs.current[event.id] = el)}
+                  />
+                  {isFutureEvent && !futureLabelShown && (
+                    <>
+                      {futureLabelShown = true}
+                      <div className="timeline-label future-label" key={`future-label-${event.id}`}>
+                        To the future...
+                      </div>
+                    </>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        ) : (
+          // Tag view placeholder content:
+          <div className="tags-view-content">
+            <p style={{textAlign:'center'}}>This is the Tag view. The search box now says "Search tags..." and the "+" button creates new tags.</p>
+          </div>
+        )}
       </div>
 
       {!isMobile && contextMenu.visible && contextMenu.mode === null && (
