@@ -435,6 +435,7 @@ h1 {
   margin-bottom: 0.75rem;
 }
 
+/* Context Menu */
 .context-menu {
   position: fixed;
   background-color: var(--bg-primary);
@@ -456,6 +457,7 @@ h1 {
   color: var(--primary-color);
 }
 
+/* Mobile Instruction */
 .mobile-instruction {
   text-align: center;
   color: var(--text-secondary);
@@ -463,6 +465,7 @@ h1 {
   margin-bottom: 1rem;
 }
 
+/* Mobile Options Modal */
 .mobile-options-modal {
   position: absolute;
   top: 50%;
@@ -504,6 +507,7 @@ h1 {
   background-color: #d32f2f;
 }
 
+/* Info Modal */
 .info-modal-overlay {
   position: fixed;
   top: 0;
@@ -531,8 +535,19 @@ h1 {
   z-index: 1001;
   overflow-y: auto;
   max-height: 80vh;
+  text-align: left;
 }
 
+.info-modal h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.info-modal p {
+  margin-bottom: 1rem;
+}
+
+/* Close Modal Button */
 .close-modal-button {
   background-color: var(--primary-color);
   color: var(--bg-primary);
@@ -547,6 +562,7 @@ h1 {
   background-color: #2563eb;
 }
 
+/* Responsive Adjustments */
 @media (max-width: 768px) {
   .row.center {
     flex-wrap: wrap;

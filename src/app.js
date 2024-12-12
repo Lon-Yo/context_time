@@ -461,7 +461,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       </div>
 
       {isMobile && showOptions && !showTagDeleteMenu && !event.isToday && (
-        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh'}}>
+        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh', textAlign:'left'}}>
           <button onClick={() => handleOptionSelect('pin')} className="option-button">
             {event.pinned ? 'Unpin' : 'Pin'}
           </button>
@@ -486,7 +486,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       )}
 
       {isMobile && showTagDeleteMenu && (
-        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh'}}>
+        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh', textAlign:'left'}}>
           {eventTags.length === 0 ? (
             <button
               onClick={() => {
@@ -619,8 +619,6 @@ function App() {
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchableWordsRef = useRef([]);
-
-  const itemRefs = useRef({});
 
   useEffect(() => {
     updateAllTags(originalTimelineData);
@@ -861,7 +859,7 @@ function App() {
     }));
     setOriginalTimelineData(updatedOriginalData);
     setShowPinsOnly(false);
-    const filtered = filterTimelineData(updatedOriginalData, searchQuery, false);
+    const filtered = filterTimelineData(updatedOriginalData, '', false);
     setTimelineData(filtered);
   };
 
@@ -910,10 +908,20 @@ function App() {
       return { ...event, anniversary, daysUntil, years };
     });
 
-    return historicalEvents
-      .filter((event) => event.daysUntil >= 0)
-      .sort((a, b) => a.daysUntil - b.daysUntil)
-      .slice(0, count);
+    // Sort based on upcomingSortMode
+    if (upcomingSortMode === 'month-day') {
+      // sort by month-day ignoring year
+      return historicalEvents
+        .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
+        .sort((a, b) => a.daysUntil - b.daysUntil)
+        .slice(0, count);
+    } else {
+      // absolute chronological from earliest to latest in actual absolute time
+      return historicalEvents
+        .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
+        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
+        .slice(0, count);
+    }
   };
 
   function addDays(date, days) {
@@ -924,43 +932,38 @@ function App() {
 
   const getFutureEventsWithinSevenDays = (count) => {
     const today = startOfDay(new Date());
-    const sevenDaysLater = addDays(today, 7);
-
-    return originalTimelineData
+    const sevenDaysLater = addDays(today, 30); // As per user's description: "only for 30 days in the future"
+    
+    // Sort based on upcomingSortMode
+    const futureEvents = originalTimelineData
       .filter((event) => {
         const eventDate = parseISO(event.date);
         return isAfter(eventDate, today) && isBefore(eventDate, sevenDaysLater);
-      })
-      .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
-      .slice(0, count);
+      });
+
+    if (upcomingSortMode === 'month-day') {
+      // Sort by how soon they occur (days until)
+      const withDaysUntil = futureEvents.map(event => {
+        const eventDate = parseISO(event.date);
+        const daysUntil = differenceInDays(eventDate, today);
+        return { ...event, daysUntil };
+      });
+      return withDaysUntil
+        .sort((a, b) => a.daysUntil - b.daysUntil)
+        .slice(0, count);
+    } else {
+      // absolute chronological
+      return futureEvents
+        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
+        .slice(0, count);
+    }
   };
 
   const upcomingHistoricalEventsList = getUpcomingHistoricalEvents(5);
   const futureEventsWithinSevenDaysList = getFutureEventsWithinSevenDays(5);
 
   const today = startOfDay(new Date());
-  const combinedUpcomingEventsList = [
-    ...upcomingHistoricalEventsList,
-    ...futureEventsWithinSevenDaysList,
-  ]
-    .filter((event, index, self) => index === self.findIndex((e) => e.id === event.id))
-    .sort((a, b) => {
-      if (upcomingSortMode === 'month-day') {
-        const aMonthDay = parseISO(a.date);
-        const bMonthDay = parseISO(b.date);
-
-        aMonthDay.setFullYear(today.getFullYear());
-        bMonthDay.setFullYear(today.getFullYear());
-
-        if (isBefore(aMonthDay, today)) aMonthDay.setFullYear(today.getFullYear() + 1);
-        if (isBefore(bMonthDay, today)) bMonthDay.setFullYear(today.getFullYear() + 1);
-
-        return compareAsc(aMonthDay, bMonthDay);
-      } else {
-        return compareAsc(parseISO(a.date), parseISO(b.date));
-      }
-    });
-
+  
   const visibleEvents = timelineData.filter((event) => !event.isToday);
   const totalEvents = visibleEvents.length;
   const sortedByDate = [...visibleEvents].sort((a, b) =>
@@ -1031,14 +1034,7 @@ function App() {
     setTimelineData(filtered);
   };
 
-  let upcomingLines = [];
-  for (let i = 0; i < combinedUpcomingEventsList.length; i++) {
-    const event = combinedUpcomingEventsList[i];
-    const displayText = `${format(parseISO(event.date), 'MMMM d')} - ${event.text}${
-      event.years ? ` (In ${event.daysUntil} days it will be ${event.years} years)` : ''
-    }`;
-    upcomingLines.push(displayText);
-  }
+  const itemRefs = useRef({});
 
   return (
     <div className="container">
@@ -1075,36 +1071,33 @@ function App() {
 
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
             <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
               <button className="close-modal-button" onClick={() => setShowInfoModal(false)} style={{pointerEvents:'auto'}}>
                 Close
               </button>
             </div>
             <h2>More info</h2>
-            <p><strong>Current date-time:</strong><br/>
-              Shows the live date and time based on your browser.  
+            <p><strong>Current time:</strong><br/>
+              Shows the live date and time based on your browser.
             </p>
-            <p><strong>Overall stats line:</strong><br/>
-              Shows a summary of the number of events recorded and the duration in time they cover.  
-            </p>
-            <p><strong>Upcoming:</strong><br/>
-              Click "Upcoming" to expand/collapse visibility of recurring historical or future events (up to 5 of each).  
-            </p>
-            <p><strong>Create & edit timeline events:</strong><br/>
-              Click the plus sign to create a new timeline event and the page will auto scroll to the current time position.  
+            <p><strong>Timeline Events:</strong><br/>
+              Click the plus sign to create a new timeline event and the page will auto scroll to the current time position in the timeline.  The new timeline event defaults to the current time or you can edit with the date-time picker to record historical or future events.  Text descriptions are required to create an event.
             </p>
             <p><strong>Tags:</strong><br/>
-              Add tags while editing an event.  
+              Add tags while editing an event. After adding or picking a tag name, click outside the tag edit text area to save the tag.  More than one tag can be created per event. Note: A second click outside of the timeline event saves the event.
             </p>
-            <p><strong>Special tags:</strong><br/>
-              #start and #stop for durations, @name for people.  
+            <p><strong>Special Tags:</strong><br/>
+              Durations are created with #start duration_name and #stop duration_name to note the start and stop of a duration with duration_name.  #Start and #Stop with the same duration_name can't be on the same timeline event and #Stop must come after #start.  There is only one use each of a #Start and #Stop for a given duration_name on the timeline.<br/><br/>
+              People, teams, or groups can be named with tags using @name.<br/><br/>
+              Generic tags are used for everything else but cannot contain '#' or '@'.<br/><br/>
+              To edit or delete any tag, right-click (desktop) or long-press (mobile).
             </p>
-            <p><strong>Search box:</strong><br/>
-              Use '+' to OR groups of terms.  
+            <p><strong>Search:</strong><br/>
+              Use '+' to OR groups of search terms.  Spaces between text from timeline event descriptions, dates, or tags will AND terms together in groups.  Search to find events then pin for review.
             </p>
-            <p><strong>Pinned events:</strong><br/>
-              Pin events to keep them visible.  
+            <p><strong>Pinning Events:</strong><br/>
+              Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile).  Search and pin events to create a custom timeline view of events in chronological order.
             </p>
           </div>
         </div>
@@ -1112,38 +1105,66 @@ function App() {
 
       {showUpcomingModal && (
         <div className="info-modal-overlay" onClick={() => setShowUpcomingModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
             <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
               <button className="close-modal-button" onClick={() => setShowUpcomingModal(false)} style={{pointerEvents:'auto'}}>
                 Close
               </button>
             </div>
             <h2>Upcoming</h2>
-            <div className="sort-toggle" style={{display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center',gap:'0.5rem'}}>
-              <span>Sorting by:</span>
+            <p><strong>Details:</strong><br/>
+              Displays recurring historical or future events (up to 5 of each, only for 30 days in the future).  The user may sort based on month-day (ignores year) or absolute chronological order (old to new).  Events for today do not show.
+            </p>
+            <p><strong>Sorting By:</strong> 
               <button onClick={toggleUpcomingSortMode} className="sort-button" style={{marginLeft:'0.5rem'}}>
                 {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute Chronological'}
               </button>
-            </div>
-            {upcomingLines.map((line, i) => (
-              <div key={i} className="upcoming-line" style={{textAlign:'center', whiteSpace:'normal', overflow:'visible'}}>
-                {line}
-              </div>
-            ))}
+            </p>
+
+            <p><strong>Past:</strong><br/>
+              {upcomingHistoricalEventsList.length === 0 ? 'No past recurring events soon.' :
+                upcomingHistoricalEventsList.map((event, i) => {
+                  const displayText = `${format(parseISO(event.date), 'MMMM d')} - ${event.text} (In ${event.daysUntil} days it will be ${event.years} years)`;
+                  return (
+                    <div key={i} className="upcoming-line" style={{whiteSpace:'normal', overflow:'visible'}}>
+                      {displayText}
+                    </div>
+                  );
+                })
+              }
+            </p>
+
+            <p><strong>Future:</strong><br/>
+              {futureEventsWithinSevenDaysList.length === 0 ? 'No upcoming future events within 7 days.' :
+                futureEventsWithinSevenDaysList.map((event, i) => {
+                  const eventDate = parseISO(event.date);
+                  const daysUntil = differenceInDays(eventDate, startOfDay(new Date()));
+                  const displayText = `${format(parseISO(event.date), 'MMMM d, yyyy h:mm a')} - ${event.text}`;
+                  return (
+                    <div key={i} className="upcoming-line" style={{whiteSpace:'normal', overflow:'visible'}}>
+                      {displayText}
+                    </div>
+                  );
+                })
+              }
+            </p>
           </div>
         </div>
       )}
 
       {showStatsModal && (
         <div className="info-modal-overlay" onClick={() => setShowStatsModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
             <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
               <button className="close-modal-button" onClick={() => setShowStatsModal(false)} style={{pointerEvents:'auto'}}>
                 Close
               </button>
             </div>
-            <h2>Stats</h2>
-            <p>{statsText}</p>
+            <h2>Statistics</h2>
+            <p><strong>Details:</strong><br/>
+              Shows a summary of the number of events recorded and the duration in time they cover.
+            </p>
+            <p><strong>Time Span:</strong><br/>{statsText}</p>
           </div>
         </div>
       )}
@@ -1358,7 +1379,7 @@ function App() {
       {isMobile && contextMenu.visible && contextMenu.mode === null && (
         <div
           className="mobile-options-modal"
-          style={{overflowY:'auto',maxHeight:'80vh'}}
+          style={{overflowY:'auto',maxHeight:'80vh',textAlign:'left'}}
         >
           {(() => {
             const ev = originalTimelineData.find(e => e.id === contextMenu.eventId);
@@ -1401,7 +1422,7 @@ function App() {
       )}
 
       {isMobile && contextMenu.visible && contextMenu.mode === 'chooseTagToDelete' && (
-        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh'}}>
+        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh',textAlign:'left'}}>
           {(() => {
             const ev = originalTimelineData.find(e => e.id === contextMenu.eventId);
             const eventTags = ev ? ev.tags || [] : [];
@@ -1456,10 +1477,6 @@ function formatDateForInput(dateString) {
   const offset = date.getTimezoneOffset();
   const adjustedDate = new Date(date.getTime() - offset * 60000);
   return adjustedDate.toISOString().slice(0, 16);
-}
-
-function formatDateForInputBack(editedDate) {
-  return editedDate + ':00';
 }
 
 export default App;

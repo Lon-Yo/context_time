@@ -1,0 +1,47 @@
+Upcoming modal:
+
+Under "Details:" 
+
+"Displays recurring historical or future events (up to 5 of each, only for 30 days in the future).  The user may sort based on month-day (ignores year) or absolute chronological order (old to new).  Events for today do not show."
+
+
+Stats modal:
+
+Under "Details:" 
+
+"Shows a summary of the number of events recorded and the duration in time they cover."
+
+
+
+More info modal:
+
+Under "Current time:" 
+
+"Shows the live date and time based on your browser.""  
+
+Under "Timeline Events:" 
+
+"Click the plus sign to create a new timeline event and the page will auto scroll to the current time position in the timeline.  The new timeline event defaults to the current time or you can edit with the date-time picker to record historical or future events.  Text descriptions are required to create an event."
+
+
+Under "Tags:" 
+
+"Add tags while editing an event. After adding or picking a tag name, click outside the tag edit text area to save the tag.  More than one tag can be created per event. Note: A second click outside of the timeline event saves the event."
+
+Under "Special Tags:" 
+
+"Durations are created with #start duration_name and #stop duration_name to note the start and stop of a duration with duration_name.  #Start and #Stop with the same duration_name can't be on the same timeline event and #Stop must come after #start.  There is only one use each of a #Start and #Stop for a given duration_name on the timeline."
+
+"People, teams, or groups can be named with tags using @name."
+
+"Generic tags are used for everything else but cannot contain '#' or '@'."
+
+"To edit or delete any tag, right-click (desktop) or long-press (mobile)."
+
+Under "Search:" 
+
+"Use '+' to OR groups of search terms.  Spaces between text from timeline event descriptions, dates, or tags will AND terms together in groups.  Search to find events then pin for review."
+
+Under "Pinning Events:"
+
+"Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile).  Search and pin events to create a custom timeline view of events in chronologocal order."
