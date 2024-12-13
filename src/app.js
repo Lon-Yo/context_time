@@ -1027,6 +1027,37 @@ function App() {
     groupedTags[key].sort((a, b) => a.tag.localeCompare(b.tag));
   }
 
+  const filteredTags = (query) => {
+    if (!query.trim()) {
+      return groupedTags;
+    }
+
+    const groups = query
+      .split('+')
+      .map((group) => group.trim().toLowerCase())
+      .filter((group) => group);
+
+    const parsedGroups = groups.map((group) => group.split(' ').filter((term) => term));
+
+    const matchesTag = (tag) => {
+      return parsedGroups.some((groupTerms) =>
+        groupTerms.every((term) => tag.includes(term))
+      );
+    };
+
+    const filteredGroupedTags = {};
+    for (let key in groupedTags) {
+      const filteredTags = groupedTags[key].filter((obj) => matchesTag(obj.tag));
+      if (filteredTags.length > 0) {
+        filteredGroupedTags[key] = filteredTags;
+      }
+    }
+
+    return filteredGroupedTags;
+  };
+
+  const visibleTags = filteredTags(searchQuery);
+
   return (
     <div className="container">
       <header className="header-row">
@@ -1053,7 +1084,7 @@ function App() {
             Tags
           </div>
           <div className="hamburger-menu-item">
-            Sign In
+            Sign Out
           </div>
         </div>
       )}
@@ -1333,12 +1364,12 @@ function App() {
           </div>
         ) : (
           <div className="tags-view-content">
-            {Object.keys(groupedTags).length === 0 && <p style={{textAlign:'center'}}>No tags available.</p>}
-            {Object.keys(groupedTags).map(group => (
+            {Object.keys(visibleTags).length === 0 && <p style={{textAlign:'center'}}>No tags available.</p>}
+            {Object.keys(visibleTags).map(group => (
               <div key={group} style={{marginBottom:'1rem'}}>
                 <h3>{group}</h3>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'5px'}}>
-                  {groupedTags[group].map(obj => (
+                  {visibleTags[group].map(obj => (
                     <span className={obj.class} key={obj.tag}>{obj.tag}</span>
                   ))}
                 </div>
