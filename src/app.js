@@ -189,7 +189,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     }
     if (!tag.startsWith('#') && !tag.startsWith('@')) {
       if (tag.includes('@') || tag.includes('#')) {
-        alert('Normal tags cannot contain # or @ symbols.');
+        alert('Tags cannot contain # or @ symbols.');
         return;
       }
     }
@@ -1012,14 +1012,14 @@ function App() {
   allTags.forEach(tag => {
     const c = tagClassForTag(tag);
     if (tag.startsWith('#')) {
-      if (!groupedTags['Special Tags']) groupedTags['Special Tags'] = [];
-      groupedTags['Special Tags'].push({tag, class:c});
+      if (!groupedTags['Durations']) groupedTags['Durations'] = [];
+      groupedTags['Durations'].push({tag, class:c});
     } else if (tag.startsWith('@')) {
-      if (!groupedTags['People Tags']) groupedTags['People Tags'] = [];
-      groupedTags['People Tags'].push({tag, class:c});
+      if (!groupedTags['People, Teams, or Groups']) groupedTags['People, Teams, or Groups'] = [];
+      groupedTags['People, Teams, or Groups'].push({tag, class:c});
     } else {
-      if (!groupedTags['Normal Tags']) groupedTags['Normal Tags'] = [];
-      groupedTags['Normal Tags'].push({tag, class:c});
+      if (!groupedTags['Tags']) groupedTags['Tags'] = [];
+      groupedTags['Tags'].push({tag, class:c});
     }
   });
 
@@ -1047,13 +1047,13 @@ function App() {
       {hamburgerOpen && (
         <div className="hamburger-menu">
           <div className="hamburger-menu-item" onClick={() => { setViewMode('timeline'); setHamburgerOpen(false); }}>
-            Timeline View
+            Timeline
           </div>
           <div className="hamburger-menu-item" onClick={() => { setViewMode('tags'); setHamburgerOpen(false); }}>
-            Tag View
+            Tags
           </div>
           <div className="hamburger-menu-item">
-            Sign In (placeholder)
+            Sign In
           </div>
         </div>
       )}
@@ -1076,7 +1076,7 @@ function App() {
             <p><strong>Tags:</strong><br/>
               Add tags while editing an event. After adding or picking a tag name, click outside the tag edit text area to save the tag. More than one tag can be created per event. Note: A second click outside of the timeline event saves the event.
             </p>
-            <p><strong>Special Tags:</strong><br/>
+            <p><strong>Durations:</strong><br/>
               Durations are created with #start duration_name and #stop duration_name to note the start and stop of a duration with duration_name. #Start and #Stop with the same duration_name can't be on the same timeline event and #Stop must come after #start. There is only one use each of a #Start and #Stop for a given duration_name on the timeline.<br/><br/>
               People, teams, or groups can be named with tags using @name.<br/><br/>
               Generic tags are used for everything else but cannot contain '#' or '@'.<br/><br/>
@@ -1187,7 +1187,10 @@ function App() {
               />
               <MdChatBubbleOutline
                 className="chat-icon"
-                style={{color: isChatMode ? 'fuchsia' : 'inherit'}}
+                style={{
+                  color: isChatMode ? 'fuchsia' : 'inherit',
+                  transform: 'scale(1.2)', // Adjust the scale as needed
+                  }}
                 onClick={() => handleToggleMode('chat')}
               />
             </div>
@@ -1235,6 +1238,7 @@ function App() {
       </div>
 
       <div className="row center no-wrap-links" style={{marginTop:'1rem',gap:'1rem', whiteSpace:'nowrap'}}>
+      {viewMode !== 'tags' && (
         <div
           className="more-info"
           onClick={() => setShowUpcomingModal(true)}
@@ -1243,6 +1247,7 @@ function App() {
         >
           Upcoming
         </div>
+      )}
         <div
           className="more-info"
           onClick={() => setShowStatsModal(true)}
