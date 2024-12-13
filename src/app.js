@@ -3,15 +3,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   format,
   parseISO,
-  differenceInDays,
   differenceInYears,
-  addYears,
   isBefore,
   isAfter,
   startOfDay,
   compareAsc,
 } from 'date-fns';
-import { FaThumbtack, FaBars, FaComments, FaSearch, FaCalendar } from 'react-icons/fa';
+import { FaThumbtack, FaBars, FaSearch, FaCalendar } from 'react-icons/fa';
+// Using a chat bubble icon with "...":
+import { MdChatBubbleOutline } from 'react-icons/md'; 
 import './app.css';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -634,50 +634,91 @@ function App() {
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchableWordsRef = useRef([]);
 
-  const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'tags'
+  const [viewMode, setViewMode] = useState('timeline'); 
   const [hamburgerOpen, setHamburgerOpen] = useState(false);
 
-  const [isChatMode, setIsChatMode] = useState(false); // false = search mode, true = chat mode
+  const [isChatMode, setIsChatMode] = useState(false); 
+
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
+
+  const itemRefs = useRef({});
+  let futureLabelShown = false;
 
   useEffect(() => {
-    updateAllTags(originalTimelineData);
-    updateDurations(originalTimelineData);
-    updateSearchableWords(originalTimelineData);
-  }, [originalTimelineData]);
-
-  useEffect(() => {
-    if (showInfoModal || showUpcomingModal || showStatsModal) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
+    if (originalTimelineData.length > 0) {
+      const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
+      const minDate = dates[0];
+      const maxDate = dates[dates.length - 1];
+      if (!startDateFilter && !endDateFilter) {
+        setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
+        setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
+      }
     }
-  }, [showInfoModal, showUpcomingModal, showStatsModal]);
+  }, [originalTimelineData, startDateFilter, endDateFilter]);
 
-  useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (meta) {
-      meta.setAttribute("content","width=device-width, initial-scale=1.0, user-scalable=no");
-    } else {
-      const m = document.createElement('meta');
-      m.name = 'viewport';
-      m.content = 'width=device-width, initial-scale=1.0, user-scalable=no';
-      document.head.appendChild(m);
+  function dateInRange(date) {
+    if (startDateFilter && endDateFilter) {
+      const d = parseISO(date);
+      const start = parseISO(startDateFilter);
+      const end = parseISO(endDateFilter);
+      return (isAfter(d, start) || +d === +start) && (isBefore(d, end) || +d === +end);
     }
-  }, []);
+    return true;
+  }
 
-  const updateAllTags = (data) => {
+  function filterTimelineData(data, query, pinsOnly) {
+    let filteredData = data;
+
+    if (query.trim()) {
+      const groups = query
+        .split('+')
+        .map((group) => group.trim().toLowerCase())
+        .filter((group) => group);
+
+      const parsedGroups = groups.map((group) => group.split(' ').filter((term) => term));
+
+      const matchesEvent = (event) => {
+        if (event.isToday) return false;
+        const formattedDate = format(parseISO(event.date), 'MMMM d, yyyy h:mm a').toLowerCase();
+        const textContent = event.text.toLowerCase();
+        const tagsContent = (event.tags || []).map((t) => t.toLowerCase());
+
+        return parsedGroups.some((groupTerms) =>
+          groupTerms.every(
+            (term) =>
+              textContent.includes(term) ||
+              formattedDate.includes(term) ||
+              tagsContent.some((tag) => tag.includes(term))
+          )
+        );
+      };
+
+      filteredData = filteredData.filter((event) => matchesEvent(event) || (event.pinned && !event.isToday));
+    } else {
+      filteredData = filteredData.filter((event) => !event.isToday || (pinsOnly && event.pinned));
+    }
+
+    if (pinsOnly) {
+      filteredData = filteredData.filter(e => e.pinned);
+    }
+
+    filteredData = filteredData.filter(e => dateInRange(e.date));
+
+    filteredData.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+    return filteredData;
+  }
+
+  function updateAllTags(data) {
     const tagsSet = new Set();
     data.forEach((event) => {
       (event.tags || []).forEach((t) => tagsSet.add(t.toLowerCase()));
     });
     setAllTags(Array.from(tagsSet));
-  };
+  }
 
-  const updateDurations = (data) => {
+  function updateDurations(data) {
     const dur = {};
     data.forEach((event) => {
       const eventDate = parseISO(event.date);
@@ -703,18 +744,18 @@ function App() {
       });
     });
     setDurations(dur);
-  };
+  }
 
-  const updateSearchableWords = (data) => {
+  function updateSearchableWords(data) {
     const wordsSet = new Set();
     data.forEach((event) => {
       event.text.toLowerCase().split(/\s+/).forEach(w => { if (w.length > 1) wordsSet.add(w); });
       (event.tags || []).forEach(tag => { if (tag.length > 1) wordsSet.add(tag.toLowerCase()); });
     });
     searchableWordsRef.current = Array.from(wordsSet);
-  };
+  }
 
-  const getTimelineDataWithToday = () => {
+  function getTimelineDataWithToday() {
     const todayDate = new Date();
     const todayEvent = {
       id: 'today',
@@ -726,9 +767,27 @@ function App() {
     const dataWithToday = [...timelineData, todayEvent];
     dataWithToday.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
     return dataWithToday;
-  };
+  }
 
   const timelineDataWithToday = getTimelineDataWithToday();
+  
+  useEffect(() => {
+    if (showInfoModal || showUpcomingModal || showStatsModal || showDateRangePicker) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+  }, [showInfoModal, showUpcomingModal, showStatsModal, showDateRangePicker]);
+
+  useEffect(() => {
+    updateAllTags(originalTimelineData);
+    updateDurations(originalTimelineData);
+    updateSearchableWords(originalTimelineData);
+  }, [originalTimelineData]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -750,58 +809,15 @@ function App() {
     }
   }, [timelineDataWithToday, newEventId]);
 
-  const filterTimelineData = (data, query, pinsOnly) => {
-    if (!query.trim()) {
-      return pinsOnly
-        ? data.filter((event) => event.pinned && !event.isToday)
-        : data.filter((event) => !event.isToday);
-    }
-
-    const groups = query
-      .split('+')
-      .map((group) => group.trim().toLowerCase())
-      .filter((group) => group);
-
-    const parsedGroups = groups.map((group) => group.split(' ').filter((term) => term));
-
-    const matchesEvent = (event) => {
-      if (event.isToday) return false;
-      const formattedDate = format(parseISO(event.date), 'MMMM d, yyyy h:mm a').toLowerCase();
-      const textContent = event.text.toLowerCase();
-      const tagsContent = (event.tags || []).map((t) => t.toLowerCase());
-
-      return parsedGroups.some((groupTerms) =>
-        groupTerms.every(
-          (term) =>
-            textContent.includes(term) ||
-            formattedDate.includes(term) ||
-            tagsContent.some((tag) => tag.includes(term))
-        )
-      );
-    };
-
-    if (pinsOnly) {
-      return data.filter((event) => event.pinned && matchesEvent(event));
-    } else {
-      return data
-        .filter((event) => matchesEvent(event))
-        .concat(
-          data.filter((event) => event.pinned && !event.isToday)
-        )
-        .filter((event, index, self) => self.findIndex((e) => e.id === event.id) === index)
-        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
-    }
-  };
-
-  const handleSearchChange = (event) => {
+  function handleSearchChange(event) {
     const query = event.target.value.toLowerCase();
     setSearchQuery(query);
     const filtered = filterTimelineData(originalTimelineData, query, showPinsOnly);
     setTimelineData(filtered);
     updateSearchQuerySuggestions(query);
-  };
+  }
 
-  const updateSearchQuerySuggestions = (query) => {
+  function updateSearchQuerySuggestions(query) {
     if (!query.trim()) {
       setSearchSuggestions([]);
       setShowSearchSuggestions(false);
@@ -815,36 +831,36 @@ function App() {
       setSearchSuggestions([]);
       setShowSearchSuggestions(false);
     }
-  };
+  }
 
-  const applySearchSuggestion = (suggestion) => {
+  function applySearchSuggestion(suggestion) {
     const q = suggestion.toLowerCase();
     setSearchQuery(q);
     const filtered = filterTimelineData(originalTimelineData, q, showPinsOnly);
     setTimelineData(filtered);
     setShowSearchSuggestions(false);
-  };
+  }
 
-  const clearSearch = () => {
+  function clearSearch() {
     setSearchQuery('');
     const filtered = filterTimelineData(originalTimelineData, '', showPinsOnly);
     setTimelineData(filtered);
     setSearchSuggestions([]);
     setShowSearchSuggestions(false);
-  };
+  }
 
-  const toggleShowPinsOnly = () => {
+  function toggleShowPinsOnly() {
     const newShowPinsOnly = !showPinsOnly;
     setShowPinsOnly(newShowPinsOnly);
     const filtered = filterTimelineData(originalTimelineData, searchQuery, newShowPinsOnly);
     setTimelineData(filtered);
-  };
+  }
 
-  const toggleUpcomingSortMode = () => {
+  function toggleUpcomingSortMode() {
     setUpcomingSortMode((prevMode) => (prevMode === 'month-day' ? 'absolute' : 'month-day'));
-  };
+  }
 
-  const handleUpdateEvent = (updatedEvent) => {
+  function handleUpdateEvent(updatedEvent) {
     const updatedOriginalData = originalTimelineData.map((event) =>
       event.id === updatedEvent.id
         ? {
@@ -859,9 +875,9 @@ function App() {
     setOriginalTimelineData(updatedOriginalData);
     const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
     setTimelineData(filtered);
-  };
+  }
 
-  const handleTogglePin = (toggledEvent) => {
+  function handleTogglePin(toggledEvent) {
     const updatedOriginalData = originalTimelineData.map((event) =>
       event.id === toggledEvent.id ? { ...event, pinned: !event.pinned } : event
     );
@@ -869,9 +885,9 @@ function App() {
 
     const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
     setTimelineData(filtered);
-  };
+  }
 
-  const handleClearPins = () => {
+  function handleClearPins() {
     const updatedOriginalData = originalTimelineData.map((event) => ({
       ...event,
       pinned: false,
@@ -880,9 +896,9 @@ function App() {
     setShowPinsOnly(false);
     const filtered = filterTimelineData(updatedOriginalData, '', false);
     setTimelineData(filtered);
-  };
+  }
 
-  const handleAddNewEvent = () => {
+  function handleAddNewEvent() {
     if (viewMode === 'timeline') {
       const defaultDate = format(new Date(), "yyyy-MM-dd'T'HH:mm");
       const newEvent = {
@@ -900,108 +916,39 @@ function App() {
       setTimelineData(filtered);
       setNewEventId(newEvent.id);
     } else {
-      // Tag view: create new tags (placeholder)
       alert('Creating new tag (placeholder).');
     }
-  };
+  }
 
-  const handleDeleteEvent = (eventId) => {
+  function handleDeleteEvent(eventId) {
     const updatedOriginalData = originalTimelineData.filter((event) => event.id !== eventId);
     setOriginalTimelineData(updatedOriginalData);
     const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
     setTimelineData(filtered);
-  };
-
-  function addDays(date, days) {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
   }
 
-  const getUpcomingHistoricalEvents = (count) => {
-    const today = startOfDay(new Date());
-    const historicalEvents = originalTimelineData.map((event) => {
-      const eventDate = parseISO(event.date);
-      let anniversary = new Date(
-        today.getFullYear(),
-        eventDate.getMonth(),
-        eventDate.getDate(),
-        eventDate.getHours(),
-        eventDate.getMinutes(),
-        eventDate.getSeconds()
-      );
-      if (isBefore(anniversary, today)) {
-        anniversary = addYears(anniversary, 1);
-      }
-      const daysUntil = differenceInDays(anniversary, today);
-      const years = anniversary.getFullYear() - eventDate.getFullYear();
-      return { ...event, anniversary, daysUntil, years };
-    });
-
-    if (upcomingSortMode === 'month-day') {
-      return historicalEvents
-        .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
-        .sort((a, b) => a.daysUntil - b.daysUntil)
-        .slice(0, count);
+  function handleToggleMode(mode) {
+    if (mode === 'chat') {
+      setIsChatMode(true);
     } else {
-      return historicalEvents
-        .filter((event) => event.daysUntil >= 0 && event.years !== undefined)
-        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
-        .slice(0, count);
+      setIsChatMode(false);
     }
-  };
+  }
 
-  const getFutureEventsWithinSevenDays = (count) => {
-    const today = startOfDay(new Date());
-    const thirtyDaysLater = addDays(today, 30);
+  // Determine default start/end
+  let defaultStart = '';
+  let defaultEnd = '';
+  if (originalTimelineData.length > 0) {
+    const sortedDates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
+    defaultStart = format(sortedDates[0], 'yyyy-MM-dd');
+    defaultEnd = format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd');
+  }
 
-    const futureEvents = originalTimelineData
-      .filter((event) => {
-        const eventDate = parseISO(event.date);
-        return isAfter(eventDate, today) && isBefore(eventDate, thirtyDaysLater);
-      });
+  const dateFilterActive = (startDateFilter && endDateFilter && defaultStart && defaultEnd) 
+    ? (startDateFilter !== defaultStart || endDateFilter !== defaultEnd)
+    : false;
 
-    if (upcomingSortMode === 'month-day') {
-      const withDaysUntil = futureEvents.map(event => {
-        const eventDate = parseISO(event.date);
-        const daysUntil = differenceInDays(eventDate, today);
-        return { ...event, daysUntil };
-      });
-      return withDaysUntil
-        .sort((a, b) => a.daysUntil - b.daysUntil)
-        .slice(0, count);
-    } else {
-      return futureEvents
-        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
-        .slice(0, count);
-    }
-  };
-
-  const upcomingHistoricalEventsList = getUpcomingHistoricalEvents(5);
-  const futureEventsWithinSevenDaysList = getFutureEventsWithinSevenDays(5);
-
-  const visibleEvents = timelineData.filter((event) => !event.isToday);
-  const totalEvents = visibleEvents.length;
-  const sortedByDate = [...visibleEvents].sort((a, b) =>
-    compareAsc(parseISO(a.date), parseISO(b.date))
-  );
-  const firstEventDate = sortedByDate[0] ? parseISO(sortedByDate[0].date) : null;
-  const lastEventDate = sortedByDate[sortedByDate.length - 1]
-    ? parseISO(sortedByDate[sortedByDate.length - 1].date)
-    : null;
-  const totalYears =
-    firstEventDate && lastEventDate ? differenceInYears(lastEventDate, firstEventDate) : 0;
-
-  const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
-  const hasMultiplePins = pinnedCount >= 2;
-
-  const statsText = `${totalEvents} events spanning ${totalYears} years (${
-    firstEventDate ? format(firstEventDate, 'MMMM d, yyyy') : ''
-  } - ${
-    lastEventDate ? format(lastEventDate, 'MMMM d, yyyy') : ''
-  })`;
-
-  const handleContextMenu = (e, eventId, tag = null) => {
+  function handleContextMenu(e, eventId, tag = null) {
     e.preventDefault();
     if (!isMobile) {
       setContextMenu({
@@ -1014,9 +961,9 @@ function App() {
         mode: null,
       });
     }
-  };
+  }
 
-  const handleDeleteTagFromEvent = (eventId, tag) => {
+  function handleDeleteTagFromEvent(eventId, tag) {
     const updatedOriginalData = originalTimelineData.map((ev) => {
       if (ev.id === eventId) {
         const newTags = (ev.tags || []).filter((t) => t !== tag);
@@ -1027,16 +974,13 @@ function App() {
     setOriginalTimelineData(updatedOriginalData);
     const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
     setTimelineData(filtered);
-  };
+  }
 
-  const handleEditTag = (eventId, tag) => {
-    setContextMenu({
-      ...contextMenu,
-      tagToEdit: { eventId, oldTag: tag },
-    });
-  };
+  function handleEditTag(eventId, tag) {
+    alert(`Edit tag "${tag}" for event ${eventId} (not implemented).`);
+  }
 
-  const handleTagEdited = (eventId, oldTag, newTag) => {
+  function handleTagEdited(eventId, oldTag, newTag) {
     newTag = newTag.toLowerCase();
     const updatedOriginalData = originalTimelineData.map((ev) => {
       if (ev.id === eventId) {
@@ -1048,36 +992,57 @@ function App() {
     setOriginalTimelineData(updatedOriginalData);
     const filtered = filterTimelineData(updatedOriginalData, searchQuery, showPinsOnly);
     setTimelineData(filtered);
-  };
-
-  const itemRefs = useRef({});
-
-  let futureLabelShown = false;
+  }
 
   const searchPlaceholder = isChatMode ? 'Chat with search results & pinned...' : (viewMode === 'timeline' ? 'Search timeline events...' : 'Search tags...');
 
-  const handleToggleMode = (mode) => {
-    if (mode === 'chat') {
-      setIsChatMode(true);
-    } else {
-      setIsChatMode(false);
+  const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
+  const hasMultiplePins = pinnedCount >= 2;
+
+  // Group tags for tag view with colors
+  const tagClassForTag = (tag) => {
+    const lower = tag.toLowerCase();
+    if (lower.startsWith('@')) {
+      return 'tag tag-person';
     }
+    if (lower.startsWith('#start ') || lower.startsWith('#stop ')) {
+      return 'tag tag-range';
+    }
+    return 'tag';
   };
+
+  const groupedTags = {};
+  allTags.forEach(tag => {
+    const c = tagClassForTag(tag);
+    if (tag.startsWith('#')) {
+      if (!groupedTags['Special Tags']) groupedTags['Special Tags'] = [];
+      groupedTags['Special Tags'].push({tag, class:c});
+    } else if (tag.startsWith('@')) {
+      if (!groupedTags['People Tags']) groupedTags['People Tags'] = [];
+      groupedTags['People Tags'].push({tag, class:c});
+    } else {
+      if (!groupedTags['Normal Tags']) groupedTags['Normal Tags'] = [];
+      groupedTags['Normal Tags'].push({tag, class:c});
+    }
+  });
+
+  for (let key in groupedTags) {
+    groupedTags[key].sort((a, b) => a.tag.localeCompare(b.tag));
+  }
 
   return (
     <div className="container">
-      <header className="header-row" style={{position:'relative'}}>
+      <header className="header-row">
         <button
           className="hamburger-button"
           onClick={() => setHamburgerOpen(!hamburgerOpen)}
           aria-label="Menu"
           title="Menu"
-          style={{position:'absolute', left:'1rem', top:'1rem'}}
         >
           <FaBars />
         </button>
-        <h1 style={{textAlign:'center'}}>Convey-i</h1>
-        <div id="current-datetime" style={{textAlign:'center', marginTop:'0.5rem'}}>
+        <h1 style={{textAlign:'center', flex:1}}>Convey-i</h1>
+        <div id="current-datetime" style={{textAlign:'center', marginTop:'0.5rem', flexBasis:'100%'}}>
           {format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}
         </div>
       </header>
@@ -1098,34 +1063,33 @@ function App() {
 
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
-              <button className="close-modal-button" onClick={() => setShowInfoModal(false)} style={{pointerEvents:'auto'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+              <button className="close-modal-button" onClick={() => setShowInfoModal(false)}>
                 Close
               </button>
             </div>
-            {/* Modal contents remain identical */}
             <h2>More info</h2>
             <p><strong>Current time:</strong><br/>
               Shows the live date and time based on your browser.
             </p>
             <p><strong>Timeline Events:</strong><br/>
-              Click the plus sign to create a new timeline event and the page will auto scroll to the current time position in the timeline.  The new timeline event defaults to the current time or you can edit with the date-time picker to record historical or future events.  Text descriptions are required to create an event.
+              Click the plus sign to create a new timeline event and the page will auto scroll to the current time position in the timeline. The new timeline event defaults to the current time or you can edit with the date-time picker to record historical or future events. Text descriptions are required to create an event.
             </p>
             <p><strong>Tags:</strong><br/>
-              Add tags while editing an event. After adding or picking a tag name, click outside the tag edit text area to save the tag.  More than one tag can be created per event. Note: A second click outside of the timeline event saves the event.
+              Add tags while editing an event. After adding or picking a tag name, click outside the tag edit text area to save the tag. More than one tag can be created per event. Note: A second click outside of the timeline event saves the event.
             </p>
             <p><strong>Special Tags:</strong><br/>
-              Durations are created with #start duration_name and #stop duration_name to note the start and stop of a duration with duration_name.  #Start and #Stop with the same duration_name can't be on the same timeline event and #Stop must come after #start.  There is only one use each of a #Start and #Stop for a given duration_name on the timeline.<br/><br/>
+              Durations are created with #start duration_name and #stop duration_name to note the start and stop of a duration with duration_name. #Start and #Stop with the same duration_name can't be on the same timeline event and #Stop must come after #start. There is only one use each of a #Start and #Stop for a given duration_name on the timeline.<br/><br/>
               People, teams, or groups can be named with tags using @name.<br/><br/>
               Generic tags are used for everything else but cannot contain '#' or '@'.<br/><br/>
               To edit or delete any tag, right-click (desktop) or long-press (mobile).
             </p>
             <p><strong>Search:</strong><br/>
-              Use '+' to OR groups of search terms.  Spaces between text from timeline event descriptions, dates, or tags will AND terms together in groups.  Search to find events then pin for review.
+              Use '+' to OR groups of search terms. Spaces between text from timeline event descriptions, dates, or tags will AND terms together in groups. Search to find events then pin for review.
             </p>
             <p><strong>Pinning Events:</strong><br/>
-              Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile).  Search and pin events to create a custom timeline view of events in chronological order.
+              Pin events to keep them visible. Toggle by clicking after hover (desktop) or long-press (mobile). Search and pin events to create a custom timeline view of events in chronological order.
             </p>
           </div>
         </div>
@@ -1133,47 +1097,24 @@ function App() {
 
       {showUpcomingModal && (
         <div className="info-modal-overlay" onClick={() => setShowUpcomingModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
-              <button className="close-modal-button" onClick={() => setShowUpcomingModal(false)} style={{pointerEvents:'auto'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+              <button className="close-modal-button" onClick={() => setShowUpcomingModal(false)}>
                 Close
               </button>
             </div>
-            {/* Modal contents remain identical */}
             <h2>Upcoming</h2>
             <p><strong>Details:</strong><br/>
-              Displays recurring historical or future events (up to 5 of each, only for 30 days in the future).  The user may sort based on month-day (ignores year) or absolute chronological order (old to new).  Events for today do not show.
+              Displays recurring historical or future events (up to 5 of each, only for 30 days in the future). The user may sort based on month-day (ignores year) or absolute chronological order (old to new). Events for today do not show.
             </p>
-            <p><strong>Sorting By:</strong> 
-              <button onClick={toggleUpcomingSortMode} className="sort-button" style={{marginLeft:'0.5rem'}}>
-                {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute Chronological'}
-              </button>
+            <p><strong>Sorting By:</strong><br/>
+              Allows toggling between month-day sort or absolute chronological sort. 
             </p>
-
             <p><strong>Past:</strong><br/>
-              {upcomingHistoricalEventsList.length === 0 ? 'No past recurring events soon.' :
-                upcomingHistoricalEventsList.map((event, i) => {
-                  const displayText = `${format(parseISO(event.date), 'MMMM d')} - ${event.text} (In ${event.daysUntil} days it will be ${event.years} years)`;
-                  return (
-                    <div key={i} className="upcoming-line" style={{whiteSpace:'normal', overflow:'visible'}}>
-                      {displayText}
-                    </div>
-                  );
-                })
-              }
+              Shows recurring historical events that are coming up again soon.
             </p>
-
             <p><strong>Future:</strong><br/>
-              {futureEventsWithinSevenDaysList.length === 0 ? 'No upcoming future events within 30 days.' :
-                futureEventsWithinSevenDaysList.map((event, i) => {
-                  const displayText = `${format(parseISO(event.date), 'MMMM d, yyyy h:mm a')} - ${event.text}`;
-                  return (
-                    <div key={i} className="upcoming-line" style={{whiteSpace:'normal', overflow:'visible'}}>
-                      {displayText}
-                    </div>
-                  );
-                })
-              }
+              Shows future events within the next 30 days.
             </p>
           </div>
         </div>
@@ -1181,18 +1122,65 @@ function App() {
 
       {showStatsModal && (
         <div className="info-modal-overlay" onClick={() => setShowStatsModal(false)}>
-          <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{position:'relative', overflowY:'auto', maxHeight:'80vh', textAlign:'left'}}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end', pointerEvents:'none'}}>
-              <button className="close-modal-button" onClick={() => setShowStatsModal(false)} style={{pointerEvents:'auto'}}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+              <button className="close-modal-button" onClick={() => setShowStatsModal(false)}>
                 Close
               </button>
             </div>
-            {/* Modal contents remain identical */}
             <h2>Statistics</h2>
             <p><strong>Details:</strong><br/>
               Shows a summary of the number of events recorded and the duration in time they cover.
             </p>
-            <p><strong>Time Span:</strong><br/>{statsText}</p>
+            <p><strong>Time Span:</strong><br/>
+              Displays the range of dates covered by all events and the total number of events.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showDateRangePicker && (
+        <div className="info-modal-overlay" onClick={() => setShowDateRangePicker(false)}>
+          <div className="info-modal" style={{maxHeight:'50vh', textAlign:'left'}} onClick={(e) => e.stopPropagation()}>
+            <h2>Select Date Range</h2>
+            <p>Select a start and end date to filter events:</p>
+            <div style={{marginBottom:'1rem'}}>
+              <label style={{display:'block', marginBottom:'0.5rem'}}>Start Date:</label>
+              <input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} />
+            </div>
+            <div style={{marginBottom:'1rem'}}>
+              <label style={{display:'block', marginBottom:'0.5rem'}}>End Date:</label>
+              <input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} />
+            </div>
+            <div style={{marginTop:'1rem', display:'flex', gap:'1rem'}}>
+              {!dateFilterActive ? (
+                <button className="close-modal-button" style={{backgroundColor:'#000000',color:'#ffffff'}} onClick={() => {
+                  const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
+                  setTimelineData(filtered);
+                  // If applied and changed from defaults
+                  if (startDateFilter !== defaultStart || endDateFilter !== defaultEnd) {
+                    // now we have a custom filter applied
+                  }
+                  setShowDateRangePicker(false);
+                }}>Apply</button>
+              ) : (
+                <button className="close-modal-button" style={{backgroundColor:'fuchsia',color:'#ffffff'}} onClick={() => {
+                  // Clear to defaults
+                  if (originalTimelineData.length > 0) {
+                    const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
+                    const minDate = dates[0];
+                    const maxDate = dates[dates.length - 1];
+                    setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
+                    setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
+                  }
+                  const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
+                  setTimelineData(filtered);
+                  setShowDateRangePicker(false);
+                  // cleared filter, dateFilterActive = false
+                }}>Clear</button>
+              )}
+              <button className="close-modal-button" style={{marginLeft:'auto'}} onClick={() => setShowDateRangePicker(false)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
@@ -1200,15 +1188,15 @@ function App() {
       <div className="row center">
         <div className="form-group">
           <div id="search-box-container">
-            <div className="left-icons">
+            <div className="left-icons" style={{gap:'0.7rem'}}> {/* reduce space between icons by about 1/3 */}
               <FaSearch
                 className="search-icon"
-                style={{fontWeight: isChatMode ? 'normal' : 'bold'}}
+                style={{color: isChatMode ? 'inherit' : 'fuchsia'}}
                 onClick={() => handleToggleMode('search')}
               />
-              <FaComments
+              <MdChatBubbleOutline
                 className="chat-icon"
-                style={{fontWeight: isChatMode ? 'bold' : 'normal'}}
+                style={{color: isChatMode ? 'fuchsia' : 'inherit'}}
                 onClick={() => handleToggleMode('chat')}
               />
             </div>
@@ -1232,8 +1220,8 @@ function App() {
                 ✖
               </button>
             )}
-            <div className="right-icon" style={{right:'0.5rem'}}>
-              <FaCalendar />
+            <div className="right-icon" style={{right:'0.5rem', color: dateFilterActive ? 'fuchsia' : 'inherit'}}>
+              <FaCalendar onClick={() => setShowDateRangePicker(true)} />
             </div>
             {showSearchSuggestions && searchSuggestions.length > 0 && (
               <div className="search-suggestions">
@@ -1255,7 +1243,7 @@ function App() {
         </div>
       </div>
 
-      <div className="row center" style={{marginTop:'1rem',gap:'1rem'}}>
+      <div className="row center no-wrap-links" style={{marginTop:'1rem',gap:'1rem', whiteSpace:'nowrap'}}>
         <div
           className="more-info"
           onClick={() => setShowUpcomingModal(true)}
@@ -1348,9 +1336,18 @@ function App() {
             })}
           </div>
         ) : (
-          // Tag view placeholder content:
           <div className="tags-view-content">
-            <p style={{textAlign:'center'}}>This is the Tag view. The search box now says "Search tags..." and the "+" button creates new tags.</p>
+            {Object.keys(groupedTags).length === 0 && <p style={{textAlign:'center'}}>No tags available.</p>}
+            {Object.keys(groupedTags).map(group => (
+              <div key={group} style={{marginBottom:'1rem'}}>
+                <h3>{group}</h3>
+                <div style={{display:'flex',flexWrap:'wrap',gap:'5px'}}>
+                  {groupedTags[group].map(obj => (
+                    <span className={obj.class} key={obj.tag}>{obj.tag}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
