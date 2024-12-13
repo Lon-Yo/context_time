@@ -10,8 +10,7 @@ import {
   compareAsc,
 } from 'date-fns';
 import { FaThumbtack, FaBars, FaSearch, FaCalendar } from 'react-icons/fa';
-// Using a chat bubble icon with "...":
-import { MdChatBubbleOutline } from 'react-icons/md'; 
+import { MdChatBubbleOutline } from 'react-icons/md';
 import './app.css';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -935,7 +934,6 @@ function App() {
     }
   }
 
-  // Determine default start/end
   let defaultStart = '';
   let defaultEnd = '';
   if (originalTimelineData.length > 0) {
@@ -999,7 +997,6 @@ function App() {
   const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
   const hasMultiplePins = pinnedCount >= 2;
 
-  // Group tags for tag view with colors
   const tagClassForTag = (tag) => {
     const lower = tag.toLowerCase();
     if (lower.startsWith('@')) {
@@ -1108,10 +1105,10 @@ function App() {
               Displays recurring historical or future events (up to 5 of each, only for 30 days in the future). The user may sort based on month-day (ignores year) or absolute chronological order (old to new). Events for today do not show.
             </p>
             <p><strong>Sorting By:</strong><br/>
-              Allows toggling between month-day sort or absolute chronological sort. 
+              Allows toggling between month-day sort or absolute chronological sort.
             </p>
             <p><strong>Past:</strong><br/>
-              Shows recurring historical events that are coming up again soon.
+              Shows recurring historical events that will come up again soon.
             </p>
             <p><strong>Future:</strong><br/>
               Shows future events within the next 30 days.
@@ -1146,26 +1143,22 @@ function App() {
             <p>Select a start and end date to filter events:</p>
             <div style={{marginBottom:'1rem'}}>
               <label style={{display:'block', marginBottom:'0.5rem'}}>Start Date:</label>
-              <input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} />
+              <input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} style={{fontSize:'1.1rem',padding:'0.5rem'}}/>
             </div>
             <div style={{marginBottom:'1rem'}}>
               <label style={{display:'block', marginBottom:'0.5rem'}}>End Date:</label>
-              <input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} />
+              <input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} style={{fontSize:'1.1rem',padding:'0.5rem'}}/>
             </div>
             <div style={{marginTop:'1rem', display:'flex', gap:'1rem'}}>
+              {/* One button that toggles between Cancel (if no change) and Clear (if changed) */}
               {!dateFilterActive ? (
                 <button className="close-modal-button" style={{backgroundColor:'#000000',color:'#ffffff'}} onClick={() => {
-                  const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
-                  setTimelineData(filtered);
-                  // If applied and changed from defaults
-                  if (startDateFilter !== defaultStart || endDateFilter !== defaultEnd) {
-                    // now we have a custom filter applied
-                  }
+                  // no changes from default => Cancel
                   setShowDateRangePicker(false);
-                }}>Apply</button>
+                }}>Cancel</button>
               ) : (
                 <button className="close-modal-button" style={{backgroundColor:'fuchsia',color:'#ffffff'}} onClick={() => {
-                  // Clear to defaults
+                  // Clear back to defaults
                   if (originalTimelineData.length > 0) {
                     const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
                     const minDate = dates[0];
@@ -1176,10 +1169,8 @@ function App() {
                   const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
                   setTimelineData(filtered);
                   setShowDateRangePicker(false);
-                  // cleared filter, dateFilterActive = false
                 }}>Clear</button>
               )}
-              <button className="close-modal-button" style={{marginLeft:'auto'}} onClick={() => setShowDateRangePicker(false)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -1188,7 +1179,7 @@ function App() {
       <div className="row center">
         <div className="form-group">
           <div id="search-box-container">
-            <div className="left-icons" style={{gap:'0.7rem'}}> {/* reduce space between icons by about 1/3 */}
+            <div className="left-icons" style={{gap:'0.7rem'}}>
               <FaSearch
                 className="search-icon"
                 style={{color: isChatMode ? 'inherit' : 'fuchsia'}}
