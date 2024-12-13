@@ -659,7 +659,7 @@ h1 {
   }
 
   .row {
-    flex-direction: column;
+    flex-direction: row;
     align-items: stretch;
   }
 
@@ -699,8 +699,8 @@ h1 {
 
   .hamburger-button {
     /* Mobile-specific styles */
-    top: 0.25rem; /* Adjust vertical position for mobile */
-    left: 0.5rem; /* Adjust horizontal position for mobile */
+    top: 0.5rem; /* Adjust vertical position for mobile */
+    left: -1rem; /* Adjust horizontal position for mobile */
   }
 
   @media (min-width: 769px) {
