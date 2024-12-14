@@ -626,9 +626,16 @@ function getTimelineStats(timelineData) {
     generic: 0
   };
   
+  // Keep track of unique duration names
+  const durationNames = new Set();
+  
   timelineData.forEach(event => {
     (event.tags || []).forEach(tag => {
-      if (tag.startsWith('#')) {
+      if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
+        // Extract duration name and add to set
+        const durationName = tag.split(' ').slice(1).join(' ');
+        durationNames.add(durationName);
+      } else if (tag.startsWith('#')) {
         tagCounts.duration++;
       } else if (tag.startsWith('@')) {
         tagCounts.person++;
@@ -637,6 +644,9 @@ function getTimelineStats(timelineData) {
       }
     });
   });
+
+  // Add the count of unique duration names
+  tagCounts.duration += durationNames.size;
 
   return {
     totalEvents: timelineData.length,
@@ -1129,9 +1139,23 @@ function App() {
   };
 
   const groupedTags = {};
+  const durationNames = new Set();
+
+  // First pass to collect duration names
+  allTags.forEach(tag => {
+    if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
+      const durationName = tag.split(' ').slice(1).join(' ').trim();
+      durationNames.add(durationName);
+    }
+  });
+
+  // Second pass to group tags
   allTags.forEach(tag => {
     const c = tagClassForTag(tag);
-    if (tag.startsWith('#')) {
+    if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
+      // Skip processing these tags as they're handled by durationNames
+      return;
+    } else if (tag.startsWith('#')) {
       if (!groupedTags['Durations']) groupedTags['Durations'] = [];
       groupedTags['Durations'].push({tag, class:c});
     } else if (tag.startsWith('@')) {
@@ -1143,6 +1167,18 @@ function App() {
     }
   });
 
+  // Add duration names to the Durations group
+  if (durationNames.size > 0) {
+    if (!groupedTags['Durations']) groupedTags['Durations'] = [];
+    durationNames.forEach(name => {
+      groupedTags['Durations'].push({
+        tag: name,
+        class: 'tag tag-range'
+      });
+    });
+  }
+
+  // Sort all groups
   for (let key in groupedTags) {
     groupedTags[key].sort((a, b) => a.tag.localeCompare(b.tag));
   }
@@ -1599,7 +1635,7 @@ function App() {
                   <div
                     className="context-menu-item"
                     onClick={() => {
-                      setContextMenu({ ...contextMenu, mode: 'chooseTagToDelete' });
+                      setContextMenu({ ...contextMenu, mode: 'chooseTagToDelete', visible: true });
                     }}
                   >
                     Delete Tag
