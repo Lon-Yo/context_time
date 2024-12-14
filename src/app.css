@@ -243,7 +243,7 @@ h1 {
 
 .search-suggestion-item:hover {
   background-color: var(--bg-secondary);
-  color: var(--primary-color);
+  color: var (--primary-color);
 }
 
 /* Timeline Section */

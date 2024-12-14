@@ -528,6 +528,78 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   );
 });
 
+function formatDateForInput(dateString) {
+  const date = parseISO(dateString);
+  const offset = date.getTimezoneOffset();
+  const adjustedDate = new Date(date.getTime() - offset * 60000);
+  return adjustedDate.toISOString().slice(0, 16);
+}
+
+function getUpcomingEvents(timelineData, sortMode = 'month-day') {
+  const now = new Date();
+  const thirtyDaysFromNow = new Date(now);
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+  // Helper to get next occurrence of a date
+  const getNextOccurrence = (date) => {
+    const eventDate = new Date(date);
+    const thisYear = new Date(
+      now.getFullYear(),
+      eventDate.getMonth(),
+      eventDate.getDate()
+    );
+    if (thisYear < now) {
+      return new Date(
+        now.getFullYear() + 1,
+        eventDate.getMonth(),
+        eventDate.getDate()
+      );
+    }
+    return thisYear;
+  };
+
+  // Process events
+  const processedEvents = timelineData.map(event => {
+    const eventDate = parseISO(event.date);
+    const nextOccurrence = getNextOccurrence(eventDate);
+    const yearDiff = differenceInYears(nextOccurrence, eventDate);
+    const dayDiff = Math.ceil((nextOccurrence - now) / (1000 * 60 * 60 * 24));
+    
+    return {
+      ...event,
+      nextOccurrence,
+      yearDiff,
+      dayDiff,
+      displayText: `${event.text} (In ${dayDiff} days it will be ${Math.abs(yearDiff)} years)`
+    };
+  });
+
+  // Split into past and future
+  const pastEvents = processedEvents.filter(e => 
+    isBefore(parseISO(e.date), now)
+  );
+
+  const futureEvents = processedEvents.filter(e =>
+    isAfter(parseISO(e.date), now) && 
+    isBefore(parseISO(e.date), thirtyDaysFromNow)
+  );
+
+  // Sort based on mode
+  const sortFn = sortMode === 'month-day' 
+    ? (a, b) => {
+        const dateA = parseISO(a.date);
+        const dateB = parseISO(b.date);
+        return (dateA.getMonth() * 100 + dateA.getDate()) - 
+               (dateB.getMonth() * 100 + dateB.getDate());
+      }
+    : (a, b) => compareAsc(parseISO(a.date), parseISO(b.date));
+
+  return {
+    past: pastEvents.sort(sortFn).slice(0, 5),
+    future: futureEvents.sort(sortFn).slice(0, 5)
+  };
+}
+
 function App() {
   const initialData = [
     {
@@ -1069,7 +1141,7 @@ function App() {
         >
           <FaBars />
         </button>
-        <h1 style={{textAlign:'center', flex:1}}>Convey-i</h1>
+        <h1 style={{textAlign:'center', flex:1}}>VeyR</h1>
         <div id="current-datetime" style={{textAlign:'center', marginTop:'0.5rem', flexBasis:'100%'}}>
           {format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}
         </div>
@@ -1132,18 +1204,44 @@ function App() {
               </button>
             </div>
             <h2>Upcoming</h2>
-            <p><strong>Details:</strong><br/>
-              Displays recurring historical or future events (up to 5 of each, only for 30 days in the future). The user may sort based on month-day (ignores year) or absolute chronological order (old to new). Events for today do not show.
-            </p>
-            <p><strong>Sorting By:</strong><br/>
-              Allows toggling between month-day sort or absolute chronological sort.
-            </p>
-            <p><strong>Past:</strong><br/>
-              Shows recurring historical events that will come up again soon.
-            </p>
-            <p><strong>Future:</strong><br/>
-              Shows future events within the next 30 days.
-            </p>
+            <div style={{marginBottom: '1rem'}}>
+              <button 
+                onClick={toggleUpcomingSortMode}
+                style={{padding: '0.5rem', cursor: 'pointer'}}
+              >
+                Sorting by: {upcomingSortMode === 'month-day' ? 'Month-Day' : 'Absolute'}
+              </button>
+            </div>
+            
+            <div style={{marginBottom: '1rem'}}>
+              <h3>Past</h3>
+              {getUpcomingEvents(timelineData, upcomingSortMode).past.length === 0 ? (
+                <p>No recurring past events</p>
+              ) : (
+                <ul style={{listStyle: 'none', padding: 0}}>
+                  {getUpcomingEvents(timelineData, upcomingSortMode).past.map(event => (
+                    <li key={event.id} style={{marginBottom: '0.5rem'}}>
+                      {event.displayText}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <h3>Future</h3>
+              {getUpcomingEvents(timelineData, upcomingSortMode).future.length === 0 ? (
+                <p>No upcoming events in the next 30 days</p>
+              ) : (
+                <ul style={{listStyle: 'none', padding: 0}}>
+                  {getUpcomingEvents(timelineData, upcomingSortMode).future.map(event => (
+                    <li key={event.id} style={{marginBottom: '0.5rem'}}>
+                      {event.displayText}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1225,8 +1323,7 @@ function App() {
                 onClick={() => handleToggleMode('chat')}
               />
             </div>
-            <input
-              type="text"
+            <textarea
               id="search"
               className="search-input"
               placeholder={searchPlaceholder}
@@ -1234,6 +1331,8 @@ function App() {
               onFocus={() => showSearchSuggestions && searchSuggestions.length > 0 && setShowSearchSuggestions(true)}
               onChange={handleSearchChange}
               onBlur={() => setShowSearchSuggestions(false)}
+              rows="1"
+              style={{resize: 'none'}}
             />
             {searchQuery && (
               <button
@@ -1575,13 +1674,6 @@ function App() {
       )}
     </div>
   );
-}
-
-function formatDateForInput(dateString) {
-  const date = parseISO(dateString);
-  const offset = date.getTimezoneOffset();
-  const adjustedDate = new Date(date.getTime() - offset * 60000);
-  return adjustedDate.toISOString().slice(0, 16);
 }
 
 export default App;
