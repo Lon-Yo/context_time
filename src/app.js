@@ -8,6 +8,7 @@ import {
   isAfter,
   startOfDay,
   compareAsc,
+  differenceInDays,
 } from 'date-fns';
 import { FaThumbtack, FaBars, FaSearch, FaCalendar } from 'react-icons/fa';
 import { MdChatBubbleOutline } from 'react-icons/md';
@@ -600,6 +601,53 @@ function getUpcomingEvents(timelineData, sortMode = 'month-day') {
   };
 }
 
+function getTimelineStats(timelineData) {
+  if (!timelineData.length) {
+    return {
+      totalEvents: 0,
+      timeSpan: null,
+      tagCounts: {
+        duration: 0,
+        person: 0,
+        generic: 0
+      }
+    };
+  }
+
+  // Get date range
+  const dates = timelineData.map(e => parseISO(e.date));
+  const minDate = new Date(Math.min(...dates));
+  const maxDate = new Date(Math.max(...dates));
+  
+  // Count tag types
+  const tagCounts = {
+    duration: 0,
+    person: 0,
+    generic: 0
+  };
+  
+  timelineData.forEach(event => {
+    (event.tags || []).forEach(tag => {
+      if (tag.startsWith('#')) {
+        tagCounts.duration++;
+      } else if (tag.startsWith('@')) {
+        tagCounts.person++;
+      } else {
+        tagCounts.generic++;
+      }
+    });
+  });
+
+  return {
+    totalEvents: timelineData.length,
+    timeSpan: {
+      start: minDate,
+      end: maxDate
+    },
+    tagCounts
+  };
+}
+
 function App() {
   const initialData = [
     {
@@ -1064,7 +1112,7 @@ function App() {
     setTimelineData(filtered);
   }
 
-  const searchPlaceholder = isChatMode ? 'Chat with search results & pinned...' : (viewMode === 'timeline' ? 'Search timeline events...' : 'Search tags...');
+  const searchPlaceholder = isChatMode ? 'Chat with results & pinned...' : (viewMode === 'timeline' ? 'Search timeline events...' : 'Search tags...');
 
   const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
   const hasMultiplePins = pinnedCount >= 2;
@@ -1169,7 +1217,7 @@ function App() {
                 Close
               </button>
             </div>
-            <h2>More info</h2>
+            <h2>Help</h2>
             <p><strong>Current time:</strong><br/>
               Shows the live date and time based on your browser.
             </p>
@@ -1214,9 +1262,9 @@ function App() {
             </div>
             
             <div style={{marginBottom: '1rem'}}>
-              <h3>Past</h3>
+              <h3>Past (Filtered)</h3>
               {getUpcomingEvents(timelineData, upcomingSortMode).past.length === 0 ? (
-                <p>No recurring past events</p>
+                <p>No recurring past events in current filter</p>
               ) : (
                 <ul style={{listStyle: 'none', padding: 0}}>
                   {getUpcomingEvents(timelineData, upcomingSortMode).past.map(event => (
@@ -1229,9 +1277,9 @@ function App() {
             </div>
 
             <div>
-              <h3>Future</h3>
+              <h3>Future (Filtered)</h3>
               {getUpcomingEvents(timelineData, upcomingSortMode).future.length === 0 ? (
-                <p>No upcoming events in the next 30 days</p>
+                <p>No upcoming events in the next 30 days in current filter</p>
               ) : (
                 <ul style={{listStyle: 'none', padding: 0}}>
                   {getUpcomingEvents(timelineData, upcomingSortMode).future.map(event => (
@@ -1255,12 +1303,49 @@ function App() {
               </button>
             </div>
             <h2>Statistics</h2>
-            <p><strong>Details:</strong><br/>
-              Shows a summary of the number of events recorded and the duration in time they cover.
-            </p>
-            <p><strong>Time Span:</strong><br/>
-              Displays the range of dates covered by all events and the total number of events.
-            </p>
+            
+            {(() => {
+              const totalStats = getTimelineStats(originalTimelineData);
+              const filteredStats = getTimelineStats(timelineData);
+              return (
+                <>
+                  <div style={{marginBottom: '1rem'}}>
+                    <h3>Timeline Overview</h3>
+                    <p>Total Events: {filteredStats.totalEvents} {filteredStats.totalEvents !== totalStats.totalEvents && 
+                      `(filtered from ${totalStats.totalEvents})`}</p>
+                    {filteredStats.timeSpan && (
+                      <p>Filtered Time Span: {format(filteredStats.timeSpan.start, 'MMMM d, yyyy')} to {format(filteredStats.timeSpan.end, 'MMMM d, yyyy')}<br/>
+                      ({differenceInYears(filteredStats.timeSpan.end, filteredStats.timeSpan.start)} years, {
+                        differenceInDays(filteredStats.timeSpan.end, filteredStats.timeSpan.start) % 365} days)
+                      </p>
+                    )}
+                    {totalStats.timeSpan && filteredStats.totalEvents !== totalStats.totalEvents && (
+                      <p>Total Time Span: {format(totalStats.timeSpan.start, 'MMMM d, yyyy')} to {format(totalStats.timeSpan.end, 'MMMM d, yyyy')}<br/>
+                      ({differenceInYears(totalStats.timeSpan.end, totalStats.timeSpan.start)} years, {
+                        differenceInDays(totalStats.timeSpan.end, totalStats.timeSpan.start) % 365} days)
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3>Tag Counts</h3>
+                    <p>Duration Tags (# or #start/#stop): {filteredStats.tagCounts.duration} 
+                      {filteredStats.tagCounts.duration !== totalStats.tagCounts.duration && 
+                      ` (filtered from ${totalStats.tagCounts.duration})`}</p>
+                    <p>Person/Team Tags (@): {filteredStats.tagCounts.person}
+                      {filteredStats.tagCounts.person !== totalStats.tagCounts.person && 
+                      ` (filtered from ${totalStats.tagCounts.person})`}</p>
+                    <p>Generic Tags: {filteredStats.tagCounts.generic}
+                      {filteredStats.tagCounts.generic !== totalStats.tagCounts.generic && 
+                      ` (filtered from ${totalStats.tagCounts.generic})`}</p>
+                    <p>Total Tags: {filteredStats.tagCounts.duration + filteredStats.tagCounts.person + filteredStats.tagCounts.generic}
+                      {(filteredStats.tagCounts.duration + filteredStats.tagCounts.person + filteredStats.tagCounts.generic) !== 
+                      (totalStats.tagCounts.duration + totalStats.tagCounts.person + totalStats.tagCounts.generic) && 
+                      ` (filtered from ${totalStats.tagCounts.duration + totalStats.tagCounts.person + totalStats.tagCounts.generic})`}</p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1392,7 +1477,7 @@ function App() {
           role="button"
           tabIndex={0}
         >
-          More info
+          Help
         </div>
       </div>
 
