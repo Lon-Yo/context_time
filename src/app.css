@@ -148,13 +148,13 @@ h1 {
 
 /* Icons inside search */
 .left-icons {
-  position:absolute;
-  top:50%;
-  transform:translateY(-50%);
-  left:0.5rem;
-  display:flex;
-  align-items:center;
-  color:var(--text-secondary);
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  z-index: 1;
 }
 
 .search-icon, .chat-icon {
@@ -175,6 +175,9 @@ h1 {
   font-size: 16px;
   box-sizing: border-box;
   text-align: center;
+  height: 2.5rem;
+  display: flex;
+  align-items: flex-end;
 }
 
 .search-input:focus {
@@ -185,8 +188,8 @@ h1 {
 
 .clear-search {
   position: absolute;
-  top:50%;
-  transform:translateY(-50%);
+  bottom: 0.75rem;
+  right: 2.5rem;
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 1rem;
@@ -194,7 +197,6 @@ h1 {
   border: none;
   padding: 0;
   line-height: 1;
-  right:2.5rem;
 }
 
 .clear-search:hover {
@@ -207,10 +209,11 @@ h1 {
 }
 
 .right-icon {
-  position:absolute;
-  top:50%;
-  transform:translateY(-50%);
-  color:var(--text-secondary);
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
 }
 
 .right-icon svg {
@@ -709,4 +712,19 @@ h1 {
     }
   }
   
+}
+
+.search-input::placeholder {
+  vertical-align: bottom;
+  line-height: 2.5rem;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-left: 4rem;
+  padding-right: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: flex-end;
+  text-align: center;
 }

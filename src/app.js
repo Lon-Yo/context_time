@@ -658,6 +658,41 @@ function getTimelineStats(timelineData) {
   };
 }
 
+function adjustTextAreaHeight(element) {
+  // Save the current scroll position
+  const scrollPos = window.scrollY;
+  
+  // Reset height to default single line height
+  element.style.height = '2.5rem';
+  
+  // Calculate content height excluding padding
+  const computedStyle = window.getComputedStyle(element);
+  const paddingTop = parseFloat(computedStyle.paddingTop);
+  const paddingBottom = parseFloat(computedStyle.paddingBottom);
+  const lineHeight = parseFloat(computedStyle.lineHeight);
+  const fontSize = parseFloat(computedStyle.fontSize);
+  
+  // Calculate the content height (scrollHeight minus padding)
+  const contentHeight = element.scrollHeight - paddingTop - paddingBottom;
+  
+  // Only adjust height if content exceeds one line
+  const singleLineHeight = fontSize * 1.5; // 1.5 is our lineHeight multiplier
+  const shouldExpand = contentHeight > singleLineHeight;
+  
+  if (shouldExpand) {
+    // Calculate number of lines needed
+    const lines = Math.ceil(contentHeight / singleLineHeight);
+    const maxLines = 5;
+    const newLines = Math.min(lines, maxLines);
+    // Set new height based on number of lines plus padding
+    const newHeight = (newLines * singleLineHeight) + paddingTop + paddingBottom;
+    element.style.height = `${newHeight}px`;
+  }
+  
+  // Restore scroll position
+  window.scrollTo(0, scrollPos);
+}
+
 function App() {
   const initialData = [
     {
@@ -814,11 +849,11 @@ function App() {
         const textContent = event.text.toLowerCase();
         const tagsContent = (event.tags || []).map((t) => t.toLowerCase());
 
-        return parsedGroups.some((groupTerms) =>
-          groupTerms.every((term) =>
+        return parsedGroups.some(groupTerms =>
+          groupTerms.every(term =>
             textContent.includes(term) ||
             formattedDate.includes(term) ||
-            tagsContent.some((tag) => tag.includes(term))
+            tagsContent.some(tag => tag.includes(term))
           )
         );
       };
@@ -971,10 +1006,11 @@ function App() {
 
   function clearSearch() {
     setSearchQuery('');
-    const filtered = filterTimelineData(originalTimelineData, '', showPinsOnly);
-    setTimelineData(filtered);
-    setSearchSuggestions([]);
-    setShowSearchSuggestions(false);
+    // Reset the textarea height to default
+    const textarea = document.getElementById('search');
+    if (textarea) {
+      textarea.style.height = '2.5rem';
+    }
   }
 
   function toggleShowPinsOnly() {
@@ -1232,16 +1268,31 @@ function App() {
   return (
     <div className="container">
       <header className="header-row">
-        <button
-          className="hamburger-button"
-          onClick={() => setHamburgerOpen(!hamburgerOpen)}
-          aria-label="Menu"
-          title="Menu"
-        >
-          <FaBars />
-        </button>
-        <h1 style={{textAlign:'center', flex:1}}>VeyR</h1>
-        <div id="current-datetime" style={{textAlign:'center', marginTop:'0.5rem', flexBasis:'100%'}}>
+        <div style={{display: 'flex', alignItems: 'center', width: '100%'}}>
+          <button
+            className="hamburger-button"
+            onClick={() => setHamburgerOpen(!hamburgerOpen)}
+            aria-label="Menu"
+            title="Menu"
+          >
+            <FaBars />
+          </button>
+          <h1 style={{
+            textAlign: 'center', 
+            flex: 1,
+            margin: 0,
+            fontSize: '2rem',
+            lineHeight: '1',
+            paddingBottom: '0.2rem'
+          }}>
+            VeyR
+          </h1>
+        </div>
+        <div id="current-datetime" style={{
+          textAlign: 'center', 
+          marginTop: '0.5rem', 
+          flexBasis: '100%'
+        }}>
           {format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}
         </div>
       </header>
@@ -1477,45 +1528,88 @@ function App() {
 
       <div className="row center">
         <div className="form-group">
-          <div id="search-box-container">
-            <div className="left-icons" style={{gap:'0.7rem'}}>
-              <FaSearch
-                className="search-icon"
-                style={{color: isChatMode ? 'inherit' : 'fuchsia'}}
-                onClick={() => handleToggleMode('search')}
-              />
-              <MdChatBubbleOutline
-                className="chat-icon"
-                style={{
-                  color: isChatMode ? 'fuchsia' : 'inherit',
-                  transform: 'scale(1.2)', // Adjust the scale as needed
+          <div id="search-box-container" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ 
+              position: 'relative', 
+              display: 'flex',
+              minHeight: '2rem',  // Reduced from 2.5rem to 2rem for single line
+            }}>
+              <div className="left-icons" style={{
+                position: 'absolute',
+                bottom: '0.5rem',
+                left: '0.5rem',
+                gap: '0.7rem',
+                display: 'flex',
+                zIndex: 1
+              }}>
+                <FaSearch
+                  className="search-icon"
+                  style={{color: isChatMode ? 'inherit' : 'fuchsia'}}
+                  onClick={() => handleToggleMode('search')}
+                />
+                <MdChatBubbleOutline
+                  className="chat-icon"
+                  style={{
+                    color: isChatMode ? 'fuchsia' : 'inherit',
+                    transform: 'scale(1.2)'
                   }}
-                onClick={() => handleToggleMode('chat')}
+                  onClick={() => handleToggleMode('chat')}
+                />
+              </div>
+              <textarea
+                id="search"
+                className="search-input"
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onFocus={() => showSearchSuggestions && searchSuggestions.length > 0 && setShowSearchSuggestions(true)}
+                onChange={(e) => {
+                  handleSearchChange(e);
+                  adjustTextAreaHeight(e.target);
+                }}
+                onBlur={() => setShowSearchSuggestions(false)}
+                style={{
+                  resize: 'none',
+                  minHeight: '2.5rem',
+                  maxHeight: `${5 * 1.5}rem`, // 5 lines maximum
+                  paddingLeft: '4rem',  // Make room for left icons
+                  paddingRight: '4.5rem',  // Increased right padding to prevent overlap
+                  width: '100%',
+                  lineHeight: '1.5',  // Normal line height for text
+                  padding: '0.5rem 4.5rem 0.5rem 4rem',  // Increased right padding
+                  verticalAlign: 'bottom',  // Align text to bottom
+                  fontSize: '1rem',
+                  boxSizing: 'border-box',  // Include padding in height calculation
+                  display: 'flex',
+                  alignItems: 'flex-end'  // Align content to bottom
+                }}
               />
-            </div>
-            <textarea
-              id="search"
-              className="search-input"
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onFocus={() => showSearchSuggestions && searchSuggestions.length > 0 && setShowSearchSuggestions(true)}
-              onChange={handleSearchChange}
-              onBlur={() => setShowSearchSuggestions(false)}
-              rows="1"
-              style={{resize: 'none'}}
-            />
-            {searchQuery && (
-              <button
-                className="clear-search"
-                onClick={clearSearch}
-                title="Clear Search"
-                aria-label="Clear Search"
-              >
-                ✖
-              </button>
-            )}
-            <div className="right-icon" style={{right:'0.5rem', color: dateFilterActive ? 'fuchsia' : 'inherit'}}>
-              <FaCalendar onClick={() => setShowDateRangePicker(true)} />
+              {searchQuery && (
+                <button
+                  className="clear-search"
+                  onClick={() => {
+                    clearSearch();
+                    const filtered = filterTimelineData(originalTimelineData, '', showPinsOnly);
+                    setTimelineData(filtered);
+                  }}
+                  title="Clear Search"
+                  aria-label="Clear Search"
+                  style={{
+                    position: 'absolute',
+                    bottom: '0.75rem',
+                    right: '2.5rem'
+                  }}
+                >
+                  ✖
+                </button>
+              )}
+              <div className="right-icon" style={{
+                position: 'absolute',
+                bottom: '0.5rem',
+                right: '0.5rem',
+                color: dateFilterActive ? 'fuchsia' : 'inherit'
+              }}>
+                <FaCalendar onClick={() => setShowDateRangePicker(true)} />
+              </div>
             </div>
             {showSearchSuggestions && searchSuggestions.length > 0 && (
               <div className="search-suggestions">
