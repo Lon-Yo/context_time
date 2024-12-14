@@ -815,11 +815,10 @@ function App() {
         const tagsContent = (event.tags || []).map((t) => t.toLowerCase());
 
         return parsedGroups.some((groupTerms) =>
-          groupTerms.every(
-            (term) =>
-              textContent.includes(term) ||
-              formattedDate.includes(term) ||
-              tagsContent.some((tag) => tag.includes(term))
+          groupTerms.every((term) =>
+            textContent.includes(term) ||
+            formattedDate.includes(term) ||
+            tagsContent.some((tag) => tag.includes(term))
           )
         );
       };
@@ -1214,6 +1213,22 @@ function App() {
 
   const visibleTags = filteredTags(searchQuery);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if clicking outside hamburger menu and menu is open
+      if (hamburgerOpen && 
+          !event.target.closest('.hamburger-menu') && 
+          !event.target.closest('.hamburger-button')) {
+        setHamburgerOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [hamburgerOpen]);
+
   return (
     <div className="container">
       <header className="header-row">
@@ -1393,33 +1408,67 @@ function App() {
             <p>Select a start and end date to filter events:</p>
             <div style={{marginBottom:'1rem'}}>
               <label style={{display:'block', marginBottom:'0.5rem'}}>Start Date:</label>
-              <input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} style={{fontSize:'1.1rem',padding:'0.5rem'}}/>
+              <input 
+                type="date" 
+                value={startDateFilter} 
+                onChange={(e) => setStartDateFilter(e.target.value)} 
+                style={{fontSize:'1.1rem',padding:'0.5rem'}}
+                min={defaultStart}
+                max={defaultEnd}
+              />
             </div>
             <div style={{marginBottom:'1rem'}}>
               <label style={{display:'block', marginBottom:'0.5rem'}}>End Date:</label>
-              <input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} style={{fontSize:'1.1rem',padding:'0.5rem'}}/>
+              <input 
+                type="date" 
+                value={endDateFilter} 
+                onChange={(e) => setEndDateFilter(e.target.value)} 
+                style={{fontSize:'1.1rem',padding:'0.5rem'}}
+                min={defaultStart}
+                max={defaultEnd}
+              />
             </div>
-            <div style={{marginTop:'1rem', display:'flex', gap:'1rem'}}>
-              {/* One button that toggles between Cancel (if no change) and Clear (if changed) */}
+            <div style={{marginTop:'1rem', display:'flex', justifyContent:'space-between', gap:'1rem'}}>
               {!dateFilterActive ? (
-                <button className="close-modal-button" style={{backgroundColor:'#000000',color:'#ffffff'}} onClick={() => {
-                  // no changes from default => Cancel
-                  setShowDateRangePicker(false);
-                }}>Cancel</button>
+                <button 
+                  className="close-modal-button" 
+                  style={{backgroundColor:'#000000',color:'#ffffff'}} 
+                  onClick={() => setShowDateRangePicker(false)}
+                >
+                  Cancel
+                </button>
               ) : (
-                <button className="close-modal-button" style={{backgroundColor:'fuchsia',color:'#ffffff'}} onClick={() => {
-                  // Clear back to defaults
-                  if (originalTimelineData.length > 0) {
-                    const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
-                    const minDate = dates[0];
-                    const maxDate = dates[dates.length - 1];
-                    setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
-                    setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
-                  }
-                  const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
-                  setTimelineData(filtered);
-                  setShowDateRangePicker(false);
-                }}>Clear</button>
+                <>
+                  <button 
+                    className="close-modal-button" 
+                    style={{backgroundColor:'fuchsia',color:'#ffffff'}} 
+                    onClick={() => {
+                      if (originalTimelineData.length > 0) {
+                        const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
+                        const minDate = dates[0];
+                        const maxDate = dates[dates.length - 1];
+                        setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
+                        setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
+                      }
+                      const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
+                      setTimelineData(filtered);
+                      setShowDateRangePicker(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="close-modal-button" 
+                    style={{backgroundColor:'#000000',color:'#ffffff'}} 
+                    onClick={() => {
+                      const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
+                      setTimelineData(filtered);
+                      setShowDateRangePicker(false);
+                    }}
+                  >
+                    Apply Filter
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1487,18 +1536,27 @@ function App() {
           </div>
         </div>
       </div>
-
-      <div className="row center no-wrap-links" style={{marginTop:'1rem',gap:'1rem', whiteSpace:'nowrap'}}>
-      {viewMode !== 'tags' && (
-        <div
-          className="more-info"
-          onClick={() => setShowUpcomingModal(true)}
-          role="button"
-          tabIndex={0}
-        >
-          Upcoming
+      {dateFilterActive && (
+        <div className="row center" style={{
+          fontSize: '0.9rem', 
+          color: '#666', 
+          marginTop: '0.5rem',
+          marginBottom: '-0.5rem'
+        }}>
+          Filtering out events before {format(parseISO(startDateFilter), 'MMM d, yyyy')} and after {format(parseISO(endDateFilter), 'MMM d, yyyy')}
         </div>
       )}
+      <div className="row center no-wrap-links" style={{marginTop:'1rem',gap:'1rem', whiteSpace:'nowrap'}}>
+        {viewMode !== 'tags' && (
+          <div
+            className="more-info"
+            onClick={() => setShowUpcomingModal(true)}
+            role="button"
+            tabIndex={0}
+          >
+            Upcoming
+          </div>
+        )}
         <div
           className="more-info"
           onClick={() => setShowStatsModal(true)}
