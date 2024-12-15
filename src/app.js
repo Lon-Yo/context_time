@@ -1266,9 +1266,9 @@ function App() {
   }, [hamburgerOpen]);
 
   return (
-    <div className="container">
+    <div className={`container ${viewMode === 'tags' ? 'tags-page' : ''}`}>
       <header className="header-row">
-        <div style={{display: 'flex', alignItems: 'center', width: '100%'}}>
+        <div className="header-container">
           <button
             className="hamburger-button"
             onClick={() => setHamburgerOpen(!hamburgerOpen)}
@@ -1277,22 +1277,11 @@ function App() {
           >
             <FaBars />
           </button>
-          <h1 style={{
-            textAlign: 'center', 
-            flex: 1,
-            margin: 0,
-            fontSize: '2rem',
-            lineHeight: '1',
-            paddingBottom: '0.2rem'
-          }}>
+          <h1 className="header-title">
             VeyR
           </h1>
         </div>
-        <div id="current-datetime" style={{
-          textAlign: 'center', 
-          marginTop: '0.5rem', 
-          flexBasis: '100%'
-        }}>
+        <div id="current-datetime" className="header-datetime">
           {format(currentDateTime, 'MMMM d, yyyy h:mm:ss a')}
         </div>
       </header>
@@ -1314,7 +1303,7 @@ function App() {
       {showInfoModal && (
         <div className="info-modal-overlay" onClick={() => setShowInfoModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+            <div className="modal-sticky-header">
               <button className="close-modal-button" onClick={() => setShowInfoModal(false)}>
                 Close
               </button>
@@ -1348,13 +1337,13 @@ function App() {
       {showUpcomingModal && (
         <div className="info-modal-overlay" onClick={() => setShowUpcomingModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+            <div className="modal-sticky-header">
               <button className="close-modal-button" onClick={() => setShowUpcomingModal(false)}>
                 Close
               </button>
             </div>
             <h2>Upcoming</h2>
-            <div style={{marginBottom: '1rem'}}>
+            <div className="date-range-group">
               <button 
                 onClick={toggleUpcomingSortMode}
                 style={{padding: '0.5rem', cursor: 'pointer'}}
@@ -1363,7 +1352,7 @@ function App() {
               </button>
             </div>
             
-            <div style={{marginBottom: '1rem'}}>
+            <div className="date-range-group">
               <h3>Past (Filtered)</h3>
               {getUpcomingEvents(timelineData, upcomingSortMode).past.length === 0 ? (
                 <p>No recurring past events in current filter</p>
@@ -1378,7 +1367,7 @@ function App() {
               )}
             </div>
 
-            <div>
+            <div className="date-range-group">
               <h3>Future (Filtered)</h3>
               {getUpcomingEvents(timelineData, upcomingSortMode).future.length === 0 ? (
                 <p>No upcoming events in the next 30 days in current filter</p>
@@ -1399,7 +1388,7 @@ function App() {
       {showStatsModal && (
         <div className="info-modal-overlay" onClick={() => setShowStatsModal(false)}>
           <div className="info-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{position:'sticky', top:0, background:'transparent', padding:'0.5rem', display:'flex', justifyContent:'flex-end'}}>
+            <div className="modal-sticky-header">
               <button className="close-modal-button" onClick={() => setShowStatsModal(false)}>
                 Close
               </button>
@@ -1411,7 +1400,7 @@ function App() {
               const filteredStats = getTimelineStats(timelineData);
               return (
                 <>
-                  <div style={{marginBottom: '1rem'}}>
+                  <div className="date-range-group">
                     <h3>Timeline Overview</h3>
                     <p>Total Events: {filteredStats.totalEvents} {filteredStats.totalEvents !== totalStats.totalEvents && 
                       `(filtered from ${totalStats.totalEvents})`}</p>
@@ -1454,36 +1443,35 @@ function App() {
 
       {showDateRangePicker && (
         <div className="info-modal-overlay" onClick={() => setShowDateRangePicker(false)}>
-          <div className="info-modal" style={{maxHeight:'50vh', textAlign:'left'}} onClick={(e) => e.stopPropagation()}>
+          <div className="info-modal" className="modal-content">
             <h2>Select Date Range</h2>
             <p>Select a start and end date to filter events:</p>
-            <div style={{marginBottom:'1rem'}}>
-              <label style={{display:'block', marginBottom:'0.5rem'}}>Start Date:</label>
+            <div className="date-range-group">
+              <label className="date-range-label">Start Date:</label>
               <input 
                 type="date" 
                 value={startDateFilter} 
                 onChange={(e) => setStartDateFilter(e.target.value)} 
-                style={{fontSize:'1.1rem',padding:'0.5rem'}}
+                className="date-range-input"
                 min={defaultStart}
                 max={defaultEnd}
               />
             </div>
-            <div style={{marginBottom:'1rem'}}>
-              <label style={{display:'block', marginBottom:'0.5rem'}}>End Date:</label>
+            <div className="date-range-group">
+              <label className="date-range-label">End Date:</label>
               <input 
                 type="date" 
                 value={endDateFilter} 
                 onChange={(e) => setEndDateFilter(e.target.value)} 
-                style={{fontSize:'1.1rem',padding:'0.5rem'}}
+                className="date-range-input"
                 min={defaultStart}
                 max={defaultEnd}
               />
             </div>
-            <div style={{marginTop:'1rem', display:'flex', justifyContent:'space-between', gap:'1rem'}}>
+            <div className="date-range-buttons">
               {!dateFilterActive ? (
                 <button 
                   className="close-modal-button" 
-                  style={{backgroundColor:'#000000',color:'#ffffff'}} 
                   onClick={() => setShowDateRangePicker(false)}
                 >
                   Cancel
@@ -1492,7 +1480,6 @@ function App() {
                 <>
                   <button 
                     className="close-modal-button" 
-                    style={{backgroundColor:'fuchsia',color:'#ffffff'}} 
                     onClick={() => {
                       if (originalTimelineData.length > 0) {
                         const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
@@ -1510,7 +1497,6 @@ function App() {
                   </button>
                   <button 
                     className="close-modal-button" 
-                    style={{backgroundColor:'#000000',color:'#ffffff'}} 
                     onClick={() => {
                       const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
                       setTimelineData(filtered);
@@ -1571,16 +1557,13 @@ function App() {
                   resize: 'none',
                   minHeight: '2.5rem',
                   maxHeight: `${5 * 1.5}rem`, // 5 lines maximum
-                  paddingLeft: '4rem',  // Make room for left icons
-                  paddingRight: '4.5rem',  // Increased right padding to prevent overlap
                   width: '100%',
-                  lineHeight: '1.5',  // Normal line height for text
-                  padding: '0.5rem 4.5rem 0.5rem 4rem',  // Increased right padding
-                  verticalAlign: 'bottom',  // Align text to bottom
+                  lineHeight: '1.5',
+                  verticalAlign: 'bottom',
                   fontSize: '1rem',
-                  boxSizing: 'border-box',  // Include padding in height calculation
+                  boxSizing: 'border-box',
                   display: 'flex',
-                  alignItems: 'flex-end'  // Align content to bottom
+                  alignItems: 'flex-end'
                 }}
               />
               {searchQuery && (
@@ -1596,7 +1579,7 @@ function App() {
                   style={{
                     position: 'absolute',
                     bottom: '0.75rem',
-                    right: '2.5rem'
+                    right: viewMode === 'tags' ? '0.5rem' : '2.5rem'  // Conditional positioning
                   }}
                 >
                   ✖
@@ -1631,12 +1614,7 @@ function App() {
         </div>
       </div>
       {dateFilterActive && (
-        <div className="row center" style={{
-          fontSize: '0.9rem', 
-          color: '#666', 
-          marginTop: '0.5rem',
-          marginBottom: '-0.5rem'
-        }}>
+        <div className="date-filter-notice">
           Filtering out events before {format(parseISO(startDateFilter), 'MMM d, yyyy')} and after {format(parseISO(endDateFilter), 'MMM d, yyyy')}
         </div>
       )}
@@ -1671,7 +1649,7 @@ function App() {
 
       {isMobile && (
         <div className="mobile-instruction">
-          Long press events to toggle pins or delete tags & events
+          Long press events to toggle pins & more
         </div>
       )}
 
