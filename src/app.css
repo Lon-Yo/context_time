@@ -849,3 +849,8 @@ h1 {
     display: block;
   }
 }
+
+/* Update the today card styling */
+.timeline-content.today-card {
+  background-color: #e3f2fd;  /* Light blue background */
+}

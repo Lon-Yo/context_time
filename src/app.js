@@ -303,7 +303,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     >
       <div className="timeline-marker"></div>
       <div
-        className="timeline-content"
+        className={`timeline-content ${event.isToday ? 'today-card' : ''}`}
         ref={editRef}
         onClick={() => {
           if (!event.isToday && !tagBeingEdited) {
