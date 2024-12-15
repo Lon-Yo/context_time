@@ -16,7 +16,7 @@ import './app.css';
 import { v4 as uuidv4 } from 'uuid';
 
 const TimelineItem = React.forwardRef(function TimelineItem(
-  { event, onUpdateEvent, onTogglePin, onDeleteEvent, onContextMenu, onDeleteTag, onEditTag, onTagEdited, isMobile, allTags, durations, originalTimelineData },
+  { event, onUpdateEvent, onTogglePin, onDeleteEvent, onContextMenu, onDeleteTag, onEditTag, onTagEdited, isMobile, allTags, durations, originalTimelineData, classForTag },
   ref
 ) {
   const [isEditing, setIsEditing] = useState(event.isNew || false);
@@ -102,8 +102,12 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   };
 
   const getAllTagSuggestions = (query) => {
+    // Filter out duration tags from normal suggestions
     const normalSuggestions = allTags.filter(
-      (t) => t.includes(query) && !editedTags.includes(t)
+      (t) => t.includes(query) && 
+      !editedTags.includes(t) && 
+      !t.startsWith('#start ') && 
+      !t.startsWith('#stop ')  // Don't suggest existing duration tags
     );
 
     let durationSuggestions = [];
@@ -111,17 +115,33 @@ const TimelineItem = React.forwardRef(function TimelineItem(
       const prefix = query.startsWith('#start ') ? '#start ' : '#stop ';
       const namePart = query.slice(prefix.length).trim();
 
-      const nameExistsGlobal = originalTimelineData.some(d =>
+      const durationExists = originalTimelineData.some(d =>
         (d.tags || []).some(existingTag => {
           const lower = existingTag.toLowerCase();
-          if ((lower.startsWith('#start ') || lower.startsWith('#stop '))) {
+          if (prefix === '#start ' && lower.startsWith('#start ')) {
+            const existingName = lower.split(' ').slice(1).join(' ');
+            return existingName.trim() === namePart;
+          }
+          if (prefix === '#stop ' && lower.startsWith('#stop ')) {
             const existingName = lower.split(' ').slice(1).join(' ');
             return existingName.trim() === namePart;
           }
           return false;
         })
       );
-      if (!nameExistsGlobal) {
+
+      const hasStartTag = prefix === '#stop ' && originalTimelineData.some(d =>
+        (d.tags || []).some(existingTag => {
+          const lower = existingTag.toLowerCase();
+          if (lower.startsWith('#start ')) {
+            const existingName = lower.split(' ').slice(1).join(' ');
+            return existingName.trim() === namePart;
+          }
+          return false;
+        })
+      );
+
+      if (!durationExists && (prefix === '#start ' || (prefix === '#stop ' && hasStartTag))) {
         durationSuggestions = [prefix + namePart];
       }
     }
@@ -248,17 +268,6 @@ const TimelineItem = React.forwardRef(function TimelineItem(
     handleAddTag(newTagName);
   };
 
-  const classForTag = (tag) => {
-    const lower = tag.toLowerCase();
-    if (lower.startsWith('@')) {
-      return 'tag tag-person';
-    }
-    if (lower.startsWith('#start ') || lower.startsWith('#stop ')) {
-      return 'tag tag-range';
-    }
-    return 'tag';
-  };
-
   const eventTags = editedTags;
 
   const tagContextMenu = (e, tag) => {
@@ -290,6 +299,15 @@ const TimelineItem = React.forwardRef(function TimelineItem(
   };
 
   const showPin = (!isEditing && !event.isToday && ((isMobile ? false : isHovered) || event.pinned));
+
+  // Add imperative handle to expose functions to parent
+  React.useImperativeHandle(ref, () => ({
+    setIsEditing: (value) => setIsEditing(value),
+    startTagEdit: (tag) => {
+      setTagBeingEdited({ oldTag: tag });
+      setTagEditInput(tag);
+    }
+  }));
 
   return (
     <div
@@ -347,6 +365,7 @@ const TimelineItem = React.forwardRef(function TimelineItem(
                       onChange={(e) => setTagEditInput(e.target.value.toLowerCase())}
                       onKeyPress={handleKeyPress}
                       onBlur={finalizeTagInput}
+                      autoFocus
                     />
                   ) : (
                     <span
@@ -810,6 +829,11 @@ function App() {
   const itemRefs = useRef({});
   let futureLabelShown = false;
 
+  const [editingTag, setEditingTag] = useState(null);
+  const [editTagInput, setEditTagInput] = useState('');
+
+  const touchTimeout = useRef(null);
+
   useEffect(() => {
     if (originalTimelineData.length > 0) {
       const dates = originalTimelineData.map(e => parseISO(e.date)).sort(compareAsc);
@@ -849,13 +873,13 @@ function App() {
         const textContent = event.text.toLowerCase();
         const tagsContent = (event.tags || []).map((t) => t.toLowerCase());
 
-        return parsedGroups.some(groupTerms =>
-          groupTerms.every(term =>
-            textContent.includes(term) ||
-            formattedDate.includes(term) ||
-            tagsContent.some(tag => tag.includes(term))
-          )
-        );
+        return parsedGroups.some((groupTerms) => {
+          return groupTerms.every((term) => {
+            return textContent.includes(term) ||
+                   formattedDate.includes(term) ||
+                   tagsContent.some((tag) => tag.includes(term));
+          });
+        });
       };
 
       filteredData = filteredData.filter((event) => matchesEvent(event) || (event.pinned && !event.isToday));
@@ -1170,7 +1194,7 @@ function App() {
   const pinnedCount = originalTimelineData.filter((event) => event.pinned).length;
   const hasMultiplePins = pinnedCount >= 2;
 
-  const tagClassForTag = (tag) => {
+  const classForTag = (tag) => {
     const lower = tag.toLowerCase();
     if (lower.startsWith('@')) {
       return 'tag tag-person';
@@ -1194,7 +1218,7 @@ function App() {
 
   // Second pass to group tags
   allTags.forEach(tag => {
-    const c = tagClassForTag(tag);
+    const c = classForTag(tag);
     if (tag.startsWith('#start ') || tag.startsWith('#stop ')) {
       // Skip processing these tags as they're handled by durationNames
       return;
@@ -1272,6 +1296,45 @@ function App() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [hamburgerOpen]);
+
+  const handleTagEdit = (oldTag, newTag) => {
+    if (!newTag.trim()) {
+      setEditingTag(null);
+      setEditTagInput('');
+      return;
+    }
+
+    // Update the tag across all events
+    const updatedData = originalTimelineData.map(event => ({
+      ...event,
+      tags: (event.tags || []).map(t => 
+        t.toLowerCase() === oldTag.toLowerCase() ? newTag : t
+      )
+    }));
+
+    setOriginalTimelineData(updatedData);
+    updateAllTags(updatedData);
+    setEditingTag(null);
+    setEditTagInput('');
+  };
+
+  // Add a new function to handle tag editing from the context menu
+  const handleTagEditFromContextMenu = (eventId, tag) => {
+    // Find the timeline item ref
+    const timelineItemRef = itemRefs.current[eventId];
+    if (timelineItemRef) {
+      // Set the event to editing mode
+      timelineItemRef.setIsEditing(true);
+      // After a short delay to let the edit mode render, set up tag editing
+      setTimeout(() => {
+        if (timelineItemRef) {
+          timelineItemRef.startTagEdit(tag);
+        }
+      }, 50);
+    }
+    // Close the context menu
+    setContextMenu({ ...contextMenu, visible: false, mode: null });
+  };
 
   return (
     <div className={`container ${viewMode === 'tags' ? 'tags-page' : 'timeline-page'}`}>
@@ -1714,6 +1777,7 @@ function App() {
                     allTags={allTags}
                     durations={durations}
                     originalTimelineData={originalTimelineData}
+                    classForTag={classForTag}
                     ref={(el) => (itemRefs.current[event.id] = el)}
                   />
                   {isFutureEvent && !futureLabelShown && (
@@ -1736,7 +1800,64 @@ function App() {
                 <h3>{group}</h3>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'5px'}}>
                   {visibleTags[group].map(obj => (
-                    <span className={obj.class} key={obj.tag}>{obj.tag}</span>
+                    editingTag === obj.tag ? (
+                      <div key={obj.tag} className="tag-edit-container">
+                        <input
+                          className="tag-edit-input"
+                          value={editTagInput}
+                          onChange={(e) => setEditTagInput(e.target.value.toLowerCase())}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleTagEdit(obj.tag, editTagInput);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <div className="tag-edit-actions">
+                          <button 
+                            className="tag-edit-button tag-edit-cancel"
+                            onClick={() => {
+                              setEditingTag(null);
+                              setEditTagInput('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            className="tag-edit-button tag-edit-save"
+                            onClick={() => handleTagEdit(obj.tag, editTagInput)}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span 
+                        className={obj.class} 
+                        key={obj.tag}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setEditingTag(obj.tag);
+                          setEditTagInput(obj.tag);
+                        }}
+                        onTouchStart={(e) => {
+                          if (isMobile) {
+                            e.preventDefault();
+                            touchTimeout.current = setTimeout(() => {
+                              setEditingTag(obj.tag);
+                              setEditTagInput(obj.tag);
+                            }, 700);
+                          }
+                        }}
+                        onTouchEnd={() => {
+                          if (isMobile) {
+                            clearTimeout(touchTimeout.current);
+                          }
+                        }}
+                      >
+                        {obj.tag}
+                      </span>
+                    )
                   ))}
                 </div>
               </div>
@@ -1765,36 +1886,69 @@ function App() {
             const eventTags = ev.tags || [];
             return (
               <>
-                <div
-                  className="context-menu-item"
-                  onClick={() => {
-                    const confirmDelete = window.confirm('Are you sure you want to delete this event?');
-                    if (confirmDelete) {
-                      handleDeleteEvent(contextMenu.eventId);
-                    }
-                    setContextMenu({ ...contextMenu, visible: false });
-                  }}
-                >
-                  Delete Event
-                </div>
-                {eventTags.length > 0 && (
-                  <div
-                    className="context-menu-item"
-                    onClick={() => {
-                      setContextMenu({ ...contextMenu, mode: 'chooseTagToDelete', visible: true });
-                    }}
-                  >
-                    Delete Tag
-                  </div>
+                {contextMenu.tagToDelete ? (
+                  <>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        const confirmDelete = window.confirm(`Are you sure you want to delete the tag "${contextMenu.tagToDelete}"?`);
+                        if (confirmDelete) {
+                          handleDeleteTagFromEvent(contextMenu.eventId, contextMenu.tagToDelete);
+                        }
+                        setContextMenu({ ...contextMenu, visible: false, mode: null });
+                      }}
+                    >
+                      Delete Tag
+                    </div>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        handleTagEditFromContextMenu(contextMenu.eventId, contextMenu.tagToDelete);
+                      }}
+                    >
+                      Edit
+                    </div>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => setContextMenu({ ...contextMenu, visible: false, mode: null })}
+                    >
+                      Cancel
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        const confirmDelete = window.confirm('Are you sure you want to delete this event?');
+                        if (confirmDelete) {
+                          handleDeleteEvent(contextMenu.eventId);
+                        }
+                        setContextMenu({ ...contextMenu, visible: false });
+                      }}
+                    >
+                      Delete Event
+                    </div>
+                    {eventTags.length > 0 && (
+                      <div
+                        className="context-menu-item"
+                        onClick={() => {
+                          setContextMenu({ ...contextMenu, mode: 'chooseTagToDelete', visible: true });
+                        }}
+                      >
+                        Manage Tags
+                      </div>
+                    )}
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        setContextMenu({ ...contextMenu, visible: false });
+                      }}
+                    >
+                      Cancel
+                    </div>
+                  </>
                 )}
-                <div
-                  className="context-menu-item"
-                  onClick={() => {
-                    setContextMenu({ ...contextMenu, visible: false });
-                  }}
-                >
-                  Cancel
-                </div>
               </>
             );
           })()}
@@ -1808,132 +1962,55 @@ function App() {
         >
           {(() => {
             const ev = originalTimelineData.find(e => e.id === contextMenu.eventId);
-            if (!ev || (ev.tags || []).length === 0) {
-              return (
-                <div
-                  className="context-menu-item"
-                  onClick={() => setContextMenu({ ...contextMenu, visible: false, mode: null })}
-                >
-                  No Tags to Delete
-                </div>
-              );
-            }
-            return (
-              <>
-                {ev.tags.map(tag => (
-                  <div
-                    key={tag}
-                    className="context-menu-item"
-                    onClick={() => {
-                      const confirmDelete = window.confirm(`Are you sure you want to delete the tag "${tag}"?`);
-                      if (confirmDelete) {
-                        handleDeleteTagFromEvent(contextMenu.eventId, tag);
-                      }
-                      setContextMenu({ ...contextMenu, visible: false, mode: null });
-                    }}
-                  >
-                    Delete "{tag}"
-                  </div>
-                ))}
-                <div
-                  className="context-menu-item"
-                  onClick={() => setContextMenu({ ...contextMenu, visible: false, mode: null })}
-                >
-                  Cancel
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {isMobile && contextMenu.visible && contextMenu.mode === null && (
-        <div
-          className="mobile-options-modal"
-          style={{overflowY:'auto',maxHeight:'80vh',textAlign:'left'}}
-        >
-          {(() => {
-            const ev = originalTimelineData.find(e => e.id === contextMenu.eventId);
-            if (!ev) {
-              return (
-                <button onClick={() => setContextMenu({ ...contextMenu, visible: false })} className="option-button">
-                  No Event Found
-                </button>
-              );
-            }
-            const eventTags = ev.tags || [];
-            return (
-              <>
-                <button onClick={() => {
-                  const confirmDelete = window.confirm('Are you sure you want to delete this event?');
-                  if (confirmDelete) {
-                    handleDeleteEvent(contextMenu.eventId);
-                  }
-                  setContextMenu({ ...contextMenu, visible: false });
-                }} className="option-button">
-                  Delete Event
-                </button>
-                {eventTags.length > 0 && (
-                  <button onClick={() => {
-                    setContextMenu({ ...contextMenu, mode: 'chooseTagToDelete', visible: true });
-                  }} className="option-button">
-                    Delete Tag
-                  </button>
-                )}
-                <button
-                  onClick={() => setContextMenu({ ...contextMenu, visible: false })}
-                  className="option-button cancel-button"
-                >
-                  Cancel
-                </button>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {isMobile && contextMenu.visible && contextMenu.mode === 'chooseTagToDelete' && (
-        <div className="mobile-options-modal" style={{overflowY:'auto',maxHeight:'80vh',textAlign:'left'}}>
-          {(() => {
-            const ev = originalTimelineData.find(e => e.id === contextMenu.eventId);
             const eventTags = ev ? ev.tags || [] : [];
             if (!ev || eventTags.length === 0) {
               return (
-                <button
+                <div
+                  className="context-menu-item"
                   onClick={() => {
                     setContextMenu({ ...contextMenu, visible: false, mode: null });
                   }}
-                  className="option-button"
                 >
-                  No Tags to Delete
-                </button>
+                  No Tags to Manage
+                </div>
               );
             }
             return (
               <>
                 {eventTags.map(tag => (
-                  <button
-                    key={tag}
-                    onClick={() => {
-                      const confirmDelete = window.confirm(`Are you sure you want to delete the tag "${tag}"?`);
-                      if (confirmDelete) {
-                        handleDeleteTagFromEvent(contextMenu.eventId, tag);
-                      }
-                      setContextMenu({ ...contextMenu, visible: false, mode: null });
-                    }}
-                    className="option-button"
-                  >
-                    Delete "{tag}"
-                  </button>
+                  <React.Fragment key={tag}>
+                    <div className={`context-menu-item tag-display ${classForTag(tag)}`}>
+                      {tag}
+                    </div>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        handleTagEditFromContextMenu(contextMenu.eventId, tag);
+                      }}
+                    >
+                      Edit
+                    </div>
+                    <div
+                      className="context-menu-item"
+                      onClick={() => {
+                        const confirmDelete = window.confirm(`Are you sure you want to delete the tag "${tag}"?`);
+                        if (confirmDelete) {
+                          handleDeleteTagFromEvent(contextMenu.eventId, tag);
+                        }
+                        setContextMenu({ ...contextMenu, visible: false, mode: null });
+                      }}
+                    >
+                      Delete
+                    </div>
+                    <div className="context-menu-item-separator" />
+                  </React.Fragment>
                 ))}
-                <button
-                  onClick={() => {
-                    setContextMenu({ ...contextMenu, visible: false, mode: null });
-                  }}
-                  className="option-button cancel-button"
+                <div
+                  className="context-menu-item"
+                  onClick={() => setContextMenu({ ...contextMenu, visible: false, mode: null })}
                 >
                   Cancel
-                </button>
+                </div>
               </>
             );
           })()}
