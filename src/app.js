@@ -832,7 +832,7 @@ function App() {
     return true;
   }
 
-  function filterTimelineData(data, query, pinsOnly) {
+  function filterTimelineData(data, query, pinsOnly, ignoreDateRange = false) {
     let filteredData = data;
 
     if (query.trim()) {
@@ -867,7 +867,9 @@ function App() {
       filteredData = filteredData.filter(e => e.pinned);
     }
 
-    filteredData = filteredData.filter(e => dateInRange(e.date));
+    if (!ignoreDateRange) {
+      filteredData = filteredData.filter(e => dateInRange(e.date));
+    }
 
     filteredData.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
     return filteredData;
@@ -1058,8 +1060,14 @@ function App() {
     }));
     setOriginalTimelineData(updatedOriginalData);
     setShowPinsOnly(false);
-    const filtered = filterTimelineData(updatedOriginalData, '', false);
-    setTimelineData(filtered);
+    
+    // Apply search filter if there's text in the search box
+    if (searchQuery.trim()) {
+      const filtered = filterTimelineData(updatedOriginalData, searchQuery, false);
+      setTimelineData(filtered);
+    } else {
+      setTimelineData(updatedOriginalData);
+    }
   }
 
   function handleAddNewEvent() {
@@ -1487,8 +1495,14 @@ function App() {
                         const maxDate = dates[dates.length - 1];
                         setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
                         setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
+                        
+                        if (searchQuery.trim()) {
+                          const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly, true);
+                          setTimelineData(filtered);
+                        } else {
+                          setTimelineData(originalTimelineData);
+                        }
                       }
-                      setTimelineData(originalTimelineData);
                       setShowDateRangePicker(false);
                     }}
                   >
