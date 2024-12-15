@@ -551,14 +551,15 @@ h1 {
   color: var(--text-secondary);
   font-size: 0.875rem;
   margin-bottom: 1rem;
+  display: none;  /* Hidden by default */
 }
 
 .mobile-instruction.timeline-page {
-  display: none; /* Hidden by default */
+  display: none;  /* Hidden by default */
 }
 
 .mobile-instruction.tags-page {
-  display: none; /* Hidden by default */
+  display: none;  /* Hidden by default */
 }
 
 /* Mobile Options Modal */
@@ -837,4 +838,14 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .mobile-instruction.timeline-page {
+    display: block;
+  }
+
+  .mobile-instruction.tags-page {
+    display: block;
+  }
 }

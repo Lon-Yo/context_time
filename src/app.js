@@ -1266,7 +1266,7 @@ function App() {
   }, [hamburgerOpen]);
 
   return (
-    <div className={`container ${viewMode === 'tags' ? 'tags-page' : ''}`}>
+    <div className={`container ${viewMode === 'tags' ? 'tags-page' : 'timeline-page'}`}>
       <header className="header-row">
         <div className="header-container">
           <button
@@ -1443,7 +1443,7 @@ function App() {
 
       {showDateRangePicker && (
         <div className="info-modal-overlay" onClick={() => setShowDateRangePicker(false)}>
-          <div className="info-modal" className="modal-content">
+          <div className="info-modal modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Select Date Range</h2>
             <p>Select a start and end date to filter events:</p>
             <div className="date-range-group">
@@ -1488,8 +1488,7 @@ function App() {
                         setStartDateFilter(format(minDate, 'yyyy-MM-dd'));
                         setEndDateFilter(format(maxDate, 'yyyy-MM-dd'));
                       }
-                      const filtered = filterTimelineData(originalTimelineData, searchQuery, showPinsOnly);
-                      setTimelineData(filtered);
+                      setTimelineData(originalTimelineData);
                       setShowDateRangePicker(false);
                     }}
                   >
@@ -1648,8 +1647,11 @@ function App() {
       </div>
 
       {isMobile && (
-        <div className="mobile-instruction">
-          Long press events to toggle pins & more
+        <div className={`mobile-instruction ${viewMode === 'tags' ? 'tags-page' : 'timeline-page'}`}>
+          {viewMode === 'tags' 
+            ? 'Long press tags to toggle pins & more'
+            : 'Long press events to toggle pins & more'
+          }
         </div>
       )}
 
